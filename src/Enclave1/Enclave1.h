@@ -33,15 +33,36 @@
 #ifndef _ENCLAVE1_H_
 #define _ENCLAVE1_H_
 
-#include <stdlib.h>
-#include <assert.h>
+#include "VaultState.h"
 
 #if defined(__cplusplus)
 extern "C" {
 #endif
 
-int printf(const char *fmt, ...);
-void e1_printf_hello_world(void);
+struct VaultHeader
+{
+    char nonce[32];
+    char name[32];
+    char password[32];
+    int numberOfFiles;
+};
+
+struct VaultAsset
+{
+    char hash[32];
+    char name[32];
+    int size;
+    char *content;
+    VaultAsset *next;
+    VaultAsset *previous;
+};
+
+struct Vault
+{
+    VaultHeader *header;
+    VaultAsset *asset;
+    VaultState state;
+};
 
 #if defined(__cplusplus)
 }

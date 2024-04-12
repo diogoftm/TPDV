@@ -40,7 +40,7 @@ enclave {
      */
     
     trusted {
-        public void e1_printf_hello_world(void);
+        public void printOptions(void);
     };
 
     /* 

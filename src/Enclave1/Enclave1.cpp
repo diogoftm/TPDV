@@ -1,63 +1,137 @@
-/*
- * Copyright (C) 2011-2018 Intel Corporation. All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- *
- *   * Redistributions of source code must retain the above copyright
- *     notice, this list of conditions and the following disclaimer.
- *   * Redistributions in binary form must reproduce the above copyright
- *     notice, this list of conditions and the following disclaimer in
- *     the documentation and/or other materials provided with the
- *     distribution.
- *   * Neither the name of Intel Corporation nor the names of its
- *     contributors may be used to endorse or promote products derived
- *     from this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- */
-
-
+#include <stdlib.h>
+#include <assert.h>
+#include <string.h>
 #include <stdarg.h>
-#include <stdio.h>      /* vsnprintf */
+#include <stdio.h>
 
 #include "Enclave1.h"
-#include "Enclave1_t.h"  /* e1_print_string */
+#include "Enclave1_t.h"
 
-/* 
- * printf: 
- *   Invokes OCALL to display the enclave buffer to the terminal.
- */
-int printf(const char *fmt, ...)
+VaultState getState(Vault* vault) { return vault->state; }
+
+void enclavePrintf(const char *fmt, ...){
+    char buf[BUFSIZ] = { '\0' };
+    va_list ap;
+
+    va_start(ap, fmt);
+    (void)vsnprintf(buf,BUFSIZ,fmt, ap);
+    va_end(ap);
+    ocall_e1_print_string(buf);
+
+}
+
+void printOptions(){
+    enclavePrintf("Hello from enclave 1\n");
+}
+
+void createVault(Vault* vault)
 {
-  char buf[BUFSIZ] = { '\0' };
-  va_list ap;
+    vault->state = NOT_YET_PARSED;
+    vault->header = NULL;
+    vault->asset = NULL;
+}
 
-  va_start(ap,fmt);
-  (void)vsnprintf(buf,BUFSIZ,fmt, ap);
-  va_end(ap);
-  ocall_e1_print_string(buf);
-  return 0;
+void createVaultAsset(VaultAsset* vaultAsset, char* name)
+{
+    memcpy(vaultAsset->name, name, sizeof(vaultAsset->name));
+    memcpy(vaultAsset->hash, "", sizeof(vaultAsset->name));
+    vaultAsset->size = 0;
+    vaultAsset->content = NULL;
+    vaultAsset->next = NULL;
+    vaultAsset->previous = NULL;
+}
+
+void createVaultHeader(VaultHeader* vaultHeader, char* name, char* password)
+{
+    memcpy(vaultHeader->name, name, sizeof(vaultHeader->name));
+    memcpy(vaultHeader->nonce, "", sizeof(vaultHeader->nonce)); // mudar para colocar um numero random
+    memcpy(vaultHeader->password, password, sizeof(vaultHeader->password));
+    vaultHeader->numberOfFiles = 0;
+}
+
+int copyWithoutNeighborsDeeply(VaultAsset* src, VaultAsset* dst) {
+    if(src == NULL || dst == NULL)
+        return -1;
+
+    memcpy(dst->hash, src->hash, sizeof(src->hash));
+    memcpy(dst->name, src->name, sizeof(src->name));
+
+    dst->size = src->size;
+
+    if(src->content != NULL) {
+        dst->content = (char*) malloc(sizeof(char) * src->size);
+        memcpy(dst->content, src->content, src->size);
+    } else {
+        dst->content = NULL;
+    }
+
+    dst->next = NULL;
+    dst->previous = NULL;
+
+    return 0;
 }
 
 
-/*
- * ECALL (it just prints a string)
- */
-
-void e1_printf_hello_world(void)
+int pushAsset(Vault* vault, VaultAsset *asset)
 {
-  printf("Hello from enclave 1\n");
+    // check if it's possible to throw exceptions inside enclave (maybe send errors to unsafe world such as printf)
+    if (getState(vault) != VALID)
+    {
+        return -1;
+    }
+    // make a copy of the asset and store in Vault::asset
+
+    return 1;
+}
+
+int changePassword(Vault* vault, char* newPswd) {
+    memcpy(vault->header->password, newPswd, sizeof(vault->header->password));
+    return 1;
+}
+
+int fetchAsset(Vault* vault, char name[32], VaultAsset* asset) {
+    if(getState(vault) != VALID)
+        return -1;
+
+    VaultAsset* curr = vault->asset;
+    while(curr != NULL) {
+        if(strcmp(name, curr->name) == 0) {
+            copyWithoutNeighborsDeeply(curr, asset);
+            return 0;
+        }
+        curr = curr->next;
+    }
+
+    return -2;
+}
+
+int loadVault(Vault *vault, const char *data, char* pw)
+{
+    // if hash fails set corrupted State
+    // ...
+
+    vault->state = VALID;
+
+    return 0;
+}
+
+int destroyVault(Vault *vault)
+{
+    if(vault->state == NOT_YET_PARSED)
+        return 1;
+
+    free(vault->header);
+    VaultAsset* curr = vault->asset;
+    VaultAsset* next;
+    while(curr != NULL) {
+        if(curr->content) {
+            free(curr->content);
+            curr->content = NULL;
+        }
+        next = curr->next;
+        free(curr);
+        curr = next;
+    }
+
+    return 1;
 }

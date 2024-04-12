@@ -181,7 +181,7 @@ int SGX_CDECL main(int argc,char *argv[])
 
   if(initialize_enclave1() < 0)
     return 1; 
-  if((ret = e1_printf_hello_world(global_eid1)) != SGX_SUCCESS)
+  if((ret = printOptions(global_eid1)) != SGX_SUCCESS)
   {
     print_error_message(ret,"e1_printf_hello_world");
     return 1;
