@@ -4,34 +4,98 @@
 #include <stdarg.h>
 #include <stdio.h>
 
+// #include "sgx_trts.h"
+// #include "sgx_tseal.h"
 #include "Enclave1.h"
 #include "Enclave1_t.h"
 
-VaultState getState(Vault* vault) { return vault->state; }
+/*
+ * Just a printf
+ */
 
-void enclavePrintf(const char *fmt, ...){
-    char buf[BUFSIZ] = { '\0' };
+void enclavePrintf(const char *fmt, ...)
+{
+    char buf[BUFSIZ] = {'\0'};
     va_list ap;
 
     va_start(ap, fmt);
-    (void)vsnprintf(buf,BUFSIZ,fmt, ap);
+    (void)vsnprintf(buf, BUFSIZ, fmt, ap);
     va_end(ap);
     ocall_e1_print_string(buf);
-
 }
 
-void printOptions(){
-    enclavePrintf("Hello from enclave 1\n");
+/*
+ * Ecall interface
+ */
+
+int ecallCreateVault(const char *vaultName, size_t vaultNameSize, const char *fileName, size_t fileNameSize,
+                     const char *psw, size_t pswSize, const char *author, size_t authorSize)
+{
+    enclavePrintf("Hello from create vault\n");
+    return 0;
 }
 
-void createVault(Vault* vault)
+int ecallOpenVault(const char *fileName, size_t fileNameSize, const char *psw, size_t pswSize)
+{
+    enclavePrintf("Hello from create vault\n");
+    return 0;
+}
+
+// We need to make sure that the assetName is unique
+int ecallInsertFileAsset(const char *assetName, size_t assetNameSize, const char *fileName, size_t fileNameSize)
+{
+    enclavePrintf("Hello from insert file asset\n");
+    return 0;
+}
+
+int ecallInsertAsset(const char *assetName, size_t assetNameSize, const char *assetData, int assetDataSize)
+{
+    enclavePrintf("Hello from insert asset\n");
+    return 0;
+}
+
+// To add value, maybe we can add some parameters to this
+int ecallListAssets()
+{
+    enclavePrintf("Hello from list assets\n");
+    return 0;
+}
+
+int ecallGetAsset(char *name, size_t nameSize)
+{
+    enclavePrintf("Hello from get asset\n");
+    return 0;
+}
+
+// maybe the digest argument can be changed to a more appropiate type
+char ecallCheckDigest(const char *assetName, size_t assetNameSize, const char *digest)
+{
+    enclavePrintf("Hello from check digest\n");
+    return 0;
+}
+
+int ecallChangePassword(const char *newPsw, size_t newPswSize)
+{
+    enclavePrintf("Hello from change password\n");
+    return 0;
+}
+
+// we need to had the clone feature, but lets forget that for now
+
+/*
+ * Internal methods
+ */
+
+VaultState getState(Vault *vault) { return vault->state; }
+
+void createVault(Vault *vault)
 {
     vault->state = NOT_YET_PARSED;
     vault->header = NULL;
     vault->asset = NULL;
 }
 
-void createVaultAsset(VaultAsset* vaultAsset, char* name)
+void createVaultAsset(VaultAsset *vaultAsset, char *name)
 {
     memcpy(vaultAsset->name, name, sizeof(vaultAsset->name));
     memcpy(vaultAsset->hash, "", sizeof(vaultAsset->name));
@@ -41,7 +105,7 @@ void createVaultAsset(VaultAsset* vaultAsset, char* name)
     vaultAsset->previous = NULL;
 }
 
-void createVaultHeader(VaultHeader* vaultHeader, char* name, char* password)
+void createVaultHeader(VaultHeader *vaultHeader, char *name, char *password)
 {
     memcpy(vaultHeader->name, name, sizeof(vaultHeader->name));
     memcpy(vaultHeader->nonce, "", sizeof(vaultHeader->nonce)); // mudar para colocar um numero random
@@ -49,8 +113,9 @@ void createVaultHeader(VaultHeader* vaultHeader, char* name, char* password)
     vaultHeader->numberOfFiles = 0;
 }
 
-int copyWithoutNeighborsDeeply(VaultAsset* src, VaultAsset* dst) {
-    if(src == NULL || dst == NULL)
+int copyWithoutNeighborsDeeply(VaultAsset *src, VaultAsset *dst)
+{
+    if (src == NULL || dst == NULL)
         return -1;
 
     memcpy(dst->hash, src->hash, sizeof(src->hash));
@@ -58,10 +123,13 @@ int copyWithoutNeighborsDeeply(VaultAsset* src, VaultAsset* dst) {
 
     dst->size = src->size;
 
-    if(src->content != NULL) {
-        dst->content = (char*) malloc(sizeof(char) * src->size);
+    if (src->content != NULL)
+    {
+        dst->content = (char *)malloc(sizeof(char) * src->size);
         memcpy(dst->content, src->content, src->size);
-    } else {
+    }
+    else
+    {
         dst->content = NULL;
     }
 
@@ -71,8 +139,7 @@ int copyWithoutNeighborsDeeply(VaultAsset* src, VaultAsset* dst) {
     return 0;
 }
 
-
-int pushAsset(Vault* vault, VaultAsset *asset)
+int pushAsset(Vault *vault, VaultAsset *asset)
 {
     // check if it's possible to throw exceptions inside enclave (maybe send errors to unsafe world such as printf)
     if (getState(vault) != VALID)
@@ -84,18 +151,22 @@ int pushAsset(Vault* vault, VaultAsset *asset)
     return 1;
 }
 
-int changePassword(Vault* vault, char* newPswd) {
+int changePassword(Vault *vault, char *newPswd)
+{
     memcpy(vault->header->password, newPswd, sizeof(vault->header->password));
     return 1;
 }
 
-int fetchAsset(Vault* vault, char name[32], VaultAsset* asset) {
-    if(getState(vault) != VALID)
+int fetchAsset(Vault *vault, char name[32], VaultAsset *asset)
+{
+    if (getState(vault) != VALID)
         return -1;
 
-    VaultAsset* curr = vault->asset;
-    while(curr != NULL) {
-        if(strcmp(name, curr->name) == 0) {
+    VaultAsset *curr = vault->asset;
+    while (curr != NULL)
+    {
+        if (strcmp(name, curr->name) == 0)
+        {
             copyWithoutNeighborsDeeply(curr, asset);
             return 0;
         }
@@ -105,7 +176,7 @@ int fetchAsset(Vault* vault, char name[32], VaultAsset* asset) {
     return -2;
 }
 
-int loadVault(Vault *vault, const char *data, char* pw)
+int loadVault(Vault *vault, const char *data, char *pw)
 {
     // if hash fails set corrupted State
     // ...
@@ -117,14 +188,16 @@ int loadVault(Vault *vault, const char *data, char* pw)
 
 int destroyVault(Vault *vault)
 {
-    if(vault->state == NOT_YET_PARSED)
+    if (vault->state == NOT_YET_PARSED)
         return 1;
 
     free(vault->header);
-    VaultAsset* curr = vault->asset;
-    VaultAsset* next;
-    while(curr != NULL) {
-        if(curr->content) {
+    VaultAsset *curr = vault->asset;
+    VaultAsset *next;
+    while (curr != NULL)
+    {
+        if (curr->content)
+        {
             free(curr->content);
             curr->content = NULL;
         }
@@ -135,3 +208,28 @@ int destroyVault(Vault *vault)
 
     return 1;
 }
+
+/*
+sgx_status_t saveSafe(sgx_sealed_data_t* sealedData)
+{
+    sgx_status_t res;
+    char* plaintext = (char*) malloc(32);
+    memcpy(plaintext, "I am the plaintext...", sizeof(plaintext));
+
+    // Allocate space for sealing
+    char plain_size = sizeof(plaintext);
+    char cipher_size = sgx_calc_sealed_data_size(0, plain_size);
+    char* sealed = (char*) malloc(cipher_size);
+
+    // Seal and unseal the data
+    res = sgx_seal_data(0, NULL, plain_size, plaintext, cipher_size, (sgx_sealed_data_t *) sealed);
+
+    // unseal:
+    //res = sgx_unseal_data((sgx_sealed_data_t *) sealed, NULL, NULL, plaintext, &plain_size);
+    //assert (res == SGX_SUCCESS);
+
+    // free(cipher_size);
+
+    return res;
+}
+*/
