@@ -64,6 +64,19 @@ struct Vault
     VaultState state;
 };
 
+static VaultState getState(Vault* vault);
+static void createVault(Vault *vault);
+static void createVaultAsset(VaultAsset *vaultAsset, char *name);
+static void createVaultHeader(VaultHeader *vaultHeader, char *name, char *password);
+static int copyWithoutNeighborsDeeply(VaultAsset *src, VaultAsset *dst);
+static int pushAsset(Vault *vault, VaultAsset *asset);
+static int changePassword(Vault *vault, char *newPswd);
+static int fetchAsset(Vault *vault, char name[32], VaultAsset *asset);
+static int loadVault(Vault *vault, const char *data, char *pw);
+static int destroyVault(Vault *vault);
+
+
+
 #if defined(__cplusplus)
 }
 #endif
