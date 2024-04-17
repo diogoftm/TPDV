@@ -9,6 +9,10 @@
 #include "Enclave1.h"
 #include "Enclave1_t.h"
 
+
+Vault* _vault = NULL;
+
+
 /*
  * Just a printf
  */
@@ -31,7 +35,9 @@ void enclavePrintf(const char *fmt, ...)
 int ecallCreateVault(const char *vaultName, size_t vaultNameSize, const char *fileName, size_t fileNameSize,
                      const char *psw, size_t pswSize, const char *author, size_t authorSize)
 {
-    enclavePrintf("Hello from create vault\n");
+    _vault = (Vault*)malloc(sizeof(Vault));
+    createVault(_vault);
+    enclavePrintf("Vault created sucessfully");
     return 0;
 }
 
@@ -57,7 +63,20 @@ int ecallInsertAsset(const char *assetName, size_t assetNameSize, const char *as
 // To add value, maybe we can add some parameters to this
 int ecallListAssets()
 {
-    enclavePrintf("Hello from list assets\n");
+    if(getState(_vault) != VALID) {
+        enclavePrintf("Unable to list assets, vault is not in a valid state\n");
+        return -1;
+    }
+    
+    enclavePrintf("Vault asset list: ");
+
+    VaultAsset* node = _vault->asset;
+
+    while(node != NULL) {
+        enclavePrintf("%s [%s]\n", node->name, node->hash);
+        node = node->next;
+    }
+
     return 0;
 }
 
@@ -86,16 +105,16 @@ int ecallChangePassword(const char *newPsw, size_t newPswSize)
  * Internal methods
  */
 
-VaultState getState(Vault *vault) { return vault->state; }
+static VaultState getState(Vault *vault) { return vault->state; }
 
-void createVault(Vault *vault)
+static void createVault(Vault *vault)
 {
     vault->state = NOT_YET_PARSED;
     vault->header = NULL;
     vault->asset = NULL;
 }
 
-void createVaultAsset(VaultAsset *vaultAsset, char *name)
+static void createVaultAsset(VaultAsset *vaultAsset, char *name)
 {
     memcpy(vaultAsset->name, name, sizeof(vaultAsset->name));
     memcpy(vaultAsset->hash, "", sizeof(vaultAsset->name));
@@ -105,7 +124,7 @@ void createVaultAsset(VaultAsset *vaultAsset, char *name)
     vaultAsset->previous = NULL;
 }
 
-void createVaultHeader(VaultHeader *vaultHeader, char *name, char *password)
+static void createVaultHeader(VaultHeader *vaultHeader, char *name, char *password)
 {
     memcpy(vaultHeader->name, name, sizeof(vaultHeader->name));
     memcpy(vaultHeader->nonce, "", sizeof(vaultHeader->nonce)); // mudar para colocar um numero random
@@ -113,7 +132,7 @@ void createVaultHeader(VaultHeader *vaultHeader, char *name, char *password)
     vaultHeader->numberOfFiles = 0;
 }
 
-int copyWithoutNeighborsDeeply(VaultAsset *src, VaultAsset *dst)
+static int copyWithoutNeighborsDeeply(VaultAsset *src, VaultAsset *dst)
 {
     if (src == NULL || dst == NULL)
         return -1;
@@ -139,7 +158,7 @@ int copyWithoutNeighborsDeeply(VaultAsset *src, VaultAsset *dst)
     return 0;
 }
 
-int pushAsset(Vault *vault, VaultAsset *asset)
+static int pushAsset(Vault *vault, VaultAsset *asset)
 {
     // check if it's possible to throw exceptions inside enclave (maybe send errors to unsafe world such as printf)
     if (getState(vault) != VALID)
@@ -151,13 +170,13 @@ int pushAsset(Vault *vault, VaultAsset *asset)
     return 1;
 }
 
-int changePassword(Vault *vault, char *newPswd)
+static int changePassword(Vault *vault, char *newPswd)
 {
     memcpy(vault->header->password, newPswd, sizeof(vault->header->password));
     return 1;
 }
 
-int fetchAsset(Vault *vault, char name[32], VaultAsset *asset)
+static int fetchAsset(Vault *vault, char name[32], VaultAsset *asset)
 {
     if (getState(vault) != VALID)
         return -1;
@@ -176,7 +195,7 @@ int fetchAsset(Vault *vault, char name[32], VaultAsset *asset)
     return -2;
 }
 
-int loadVault(Vault *vault, const char *data, char *pw)
+static int loadVault(Vault *vault, const char *data, char *pw)
 {
     // if hash fails set corrupted State
     // ...
@@ -186,7 +205,7 @@ int loadVault(Vault *vault, const char *data, char *pw)
     return 0;
 }
 
-int destroyVault(Vault *vault)
+static int destroyVault(Vault *vault)
 {
     if (vault->state == NOT_YET_PARSED)
         return 1;

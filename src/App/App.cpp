@@ -160,6 +160,13 @@ int initialize_enclave1(void)
   return 0;
 }
 
+void handleCreateVault() {
+  //ask for user input
+  int ret_val;
+  ecallCreateVault(global_eid1, &ret_val, "Vault", 5, "abc", 3, "abc", 3, "author", 6);
+}
+
+
 void ocall_e1_print_string(const char *str)
 {
   printf("%s", str);
@@ -176,7 +183,7 @@ int SGX_CDECL main(int argc, char *argv[])
   if (initialize_enclave1() < 0)
     return 1;
 
-  printf("Do you want to open or create a vault?\n1 - Open\n2 - Close\n>>> ");
+  printf("Do you want to open or create a vault?\n1 - Open\n2 - Create\n3 - Close\n>>> ");
 
   int option;
 
@@ -194,8 +201,17 @@ int SGX_CDECL main(int argc, char *argv[])
       return 1;
     }
     if (returnVal == 0)
-      printf("Info: The vault was successfully created!\n");
+      printf("Info: The vault was successfully opened!\n");
   }
+
+  else if(option == 2) {
+    handleCreateVault();
+  }
+
+  else if(option == 3) {
+    return 0;
+  }
+
 
 
   char i = 0;
@@ -223,6 +239,8 @@ int SGX_CDECL main(int argc, char *argv[])
       }
     }
 
+    int* ret_val = NULL;
+
     switch (option)
     {
     case 0:
@@ -238,6 +256,7 @@ int SGX_CDECL main(int argc, char *argv[])
     case 2:
       break;
     case 3:
+      ecallListAssets(global_eid1, ret_val);
       break;
     case 4:
       break;
