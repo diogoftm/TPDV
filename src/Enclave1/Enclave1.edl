@@ -46,8 +46,8 @@ enclave {
         public int ecallInsertAsset([in, count=assetNameSize] const char *assetName, size_t assetNameSize, [in, count=assetDataSize] const char *assetData, int assetDataSize);
         public int ecallListAssets(void);
         public int ecallGetAsset([in, count=nameSize] char *name, size_t nameSize);
-        char ecallCheckDigest([in, count=assetNameSize] const char *assetName, size_t assetNameSize, [user_check] const char *digest);
-        int ecallChangePassword([in, count=newPswSize] const char *newPsw, size_t newPswSize);
+        public char ecallCheckDigest([in, count=assetNameSize] const char *assetName, size_t assetNameSize, [user_check] const char *digest);
+        public int ecallChangePassword([in, count=newPswSize] const char *newPsw, size_t newPswSize);
     };
 
     /* 
@@ -57,6 +57,8 @@ enclave {
      */
     untrusted {
         void ocall_e1_print_string([in, string] const char *str);
+        void ocallSaveDataToFile([in, string] const char* data, int siz, [in, string] const char* fileName);
+        void ocallLoadSealedData([user_check] char* data, [in, string] const char* fileName);
     };
 
 };

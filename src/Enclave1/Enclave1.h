@@ -74,8 +74,9 @@ static int changePassword(Vault *vault, char *newPswd);
 static int fetchAsset(Vault *vault, char name[32], VaultAsset *asset);
 static int loadVault(Vault *vault, const char *data, char *pw);
 static int destroyVault(Vault *vault);
-
-
+static int sealData(char** sealedData, char* data, size_t dataSize);
+static sgx_status_t unsealData(char* sealedData, uint8_t* plaintext);
+static void unsealDataFromFile(char* fileName, uint8_t* plaintext);
 
 #if defined(__cplusplus)
 }

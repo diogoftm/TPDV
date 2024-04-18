@@ -38,6 +38,8 @@
 #include "App.h"
 #include "Enclave1_u.h"
 
+#define MAX_DATA_SIZE 256
+
 /*
  * Error reporting
  */
@@ -172,6 +174,46 @@ void ocall_e1_print_string(const char *str)
   printf("%s", str);
 }
 
+void ocallSaveDataToFile(const char* data, int siz, const char* fileName)
+{
+  FILE *file = fopen(fileName, "wb");
+
+  if (file == NULL) {
+      fprintf(stderr, "Error opening the file.\n");
+      return; 
+  }
+
+  size_t numBytesWritten = fwrite(data, sizeof(char), siz, file); // Write data to the file
+
+  fclose(file);
+}
+
+
+void ocallLoadSealedData(char *sealedData, const char *fileName) {
+  FILE *file = fopen(fileName, "rb"); // Open the file in binary mode for reading
+
+  if (file == NULL) {
+      fprintf(stderr, "Error opening the file.\n");
+      return; // Exit the function if file opening fails
+  }
+
+  fseek(file, 0, SEEK_END);
+  size_t fileSize = ftell(file);
+  fseek(file, 0, SEEK_SET);
+
+  // Read the data from the file
+  size_t bytesRead = fread(sealedData, sizeof(char), fileSize, file);
+  if (bytesRead != fileSize) {
+      fprintf(stderr, "Error reading from the file.\n");
+      fclose(file);
+      return; // Exit the function if reading fails
+  }
+
+  fclose(file); // Close the file
+}
+
+
+
 /*
  * Application entry
  */
@@ -219,7 +261,7 @@ int SGX_CDECL main(int argc, char *argv[])
   while (1)
   {
     printf("Menu:\n0 - Exit\n1 - Add asset from keyboard\n2 - Add asset from file\n3 - List assets \
-          \n4 - Print asset\n5 - Save asset to file 6 - Compare file digest\n7 - Change password\n>>> ");
+          \n4 - Print asset\n5 - Save asset to file\n6 - Compare file digest\n7 - Change password\n>>> ");
 
     while (1)
     {
@@ -237,6 +279,7 @@ int SGX_CDECL main(int argc, char *argv[])
           break;
         }
       }
+      i = 1;
     }
 
     int* ret_val = NULL;
@@ -269,7 +312,5 @@ int SGX_CDECL main(int argc, char *argv[])
     default:
       printf("Error: invalid option\n");
     }
-
-    i = 1;
   }
 }

@@ -4,8 +4,8 @@
 #include <stdarg.h>
 #include <stdio.h>
 
-// #include "sgx_trts.h"
-// #include "sgx_tseal.h"
+#include "sgx_trts.h"
+#include "sgx_tseal.h"
 #include "Enclave1.h"
 #include "Enclave1_t.h"
 
@@ -37,7 +37,18 @@ int ecallCreateVault(const char *vaultName, size_t vaultNameSize, const char *fi
 {
     _vault = (Vault*)malloc(sizeof(Vault));
     createVault(_vault);
-    enclavePrintf("Vault created sucessfully");
+    enclavePrintf("Vault created successfully");
+
+
+    char* sealedData;
+
+    //int siz = sealData(&sealedData, "text\n", sizeof("text\n"));
+    //ocallSaveDataToFile(sealedData, siz, "vault");
+    //uint8_t* plaintext = (uint8_t*) malloc(64); 
+    //unsealData(sealedData, plaintext);
+    //unsealDataFromFile("vault", plaintext); // this does not work
+    //enclavePrintf((char*) plaintext);
+
     return 0;
 }
 
@@ -104,6 +115,50 @@ int ecallChangePassword(const char *newPsw, size_t newPswSize)
 /*
  * Internal methods
  */
+
+int sealData(char** sealedData, char* data, size_t dataSize)
+{
+    sgx_status_t res;
+    uint32_t plaintext_len = dataSize;
+    uint8_t* plaintext = (uint8_t*) malloc(plaintext_len);
+    memcpy(plaintext, data, plaintext_len);
+
+    uint32_t ciph_size = sgx_calc_sealed_data_size(0, plaintext_len);
+    *sealedData = (char*) malloc(ciph_size);
+
+    res = sgx_seal_data(0, NULL, plaintext_len, plaintext, ciph_size, (sgx_sealed_data_t *) *sealedData);
+
+    return ciph_size;
+}
+
+sgx_status_t unsealData(char* sealedData, uint8_t* plaintext)
+{
+    sgx_status_t res;
+    uint32_t size = 6;
+
+    res = sgx_unseal_data((sgx_sealed_data_t *) sealedData, NULL, NULL, plaintext, &size);
+    return res;
+}
+
+void unsealDataFromFile(char* fileName, uint8_t* plaintext)
+{
+    char* sealedData = (char*) malloc(256);
+    if (sealedData == NULL) {
+        enclavePrintf("Error 1\n");
+        return;
+    }
+
+    ocallLoadSealedData(sealedData, fileName);
+
+    sgx_status_t res = unsealData(sealedData, plaintext);
+
+    if (res != SGX_SUCCESS) {
+        enclavePrintf("Error 2\n");
+    }
+
+    free(sealedData);
+}
+
 
 static VaultState getState(Vault *vault) { return vault->state; }
 
@@ -228,27 +283,4 @@ static int destroyVault(Vault *vault)
     return 1;
 }
 
-/*
-sgx_status_t saveSafe(sgx_sealed_data_t* sealedData)
-{
-    sgx_status_t res;
-    char* plaintext = (char*) malloc(32);
-    memcpy(plaintext, "I am the plaintext...", sizeof(plaintext));
 
-    // Allocate space for sealing
-    char plain_size = sizeof(plaintext);
-    char cipher_size = sgx_calc_sealed_data_size(0, plain_size);
-    char* sealed = (char*) malloc(cipher_size);
-
-    // Seal and unseal the data
-    res = sgx_seal_data(0, NULL, plain_size, plaintext, cipher_size, (sgx_sealed_data_t *) sealed);
-
-    // unseal:
-    //res = sgx_unseal_data((sgx_sealed_data_t *) sealed, NULL, NULL, plaintext, &plain_size);
-    //assert (res == SGX_SUCCESS);
-
-    // free(cipher_size);
-
-    return res;
-}
-*/
