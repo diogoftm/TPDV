@@ -37,7 +37,7 @@ int ecallCreateVault(const char *vaultName, size_t vaultNameSize, const char *fi
                      const char *psw, size_t pswSize, const char *author, size_t authorSize)
 {
     _vault = (Vault*)malloc(sizeof(Vault));
-    createVault(_vault);
+    setupVault(_vault);
     enclavePrintf("Vault created sucessfully");
     return 0;
 }

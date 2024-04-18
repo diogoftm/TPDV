@@ -1,6 +1,8 @@
 #ifndef _VAULT_H_
 #define _VAULT_H_
 
+#include <stdlib.h>
+
 #if defined(__cplusplus)
 extern "C" {
 #endif
@@ -14,7 +16,7 @@ enum VaultState
 
 struct VaultHeader
 {
-    char nonce[32];
+    unsigned char nonce[32];
     char name[32];
     char password[32];
     int numberOfFiles;
@@ -22,10 +24,10 @@ struct VaultHeader
 
 struct VaultAsset
 {
-    char hash[32];
+    unsigned char hash[32];
     char name[32];
     int size;
-    char *content;
+    unsigned char *content;
     VaultAsset *next;
     VaultAsset *previous;
 };
@@ -38,9 +40,9 @@ struct Vault
 };
 
 VaultState getState(Vault* vault);
-void createVault(Vault *vault);
-void createVaultAsset(VaultAsset *vaultAsset, char *name);
-void createVaultHeader(VaultHeader *vaultHeader, char *name, char *password);
+void setupVault(Vault *vault);
+int setupVaultAsset(VaultAsset *vaultAsset, char *name, unsigned char* content, size_t contentSize);
+void setupVaultHeader(VaultHeader *vaultHeader, char *name, char *password);
 int copyWithoutNeighborsDeeply(VaultAsset *src, VaultAsset *dst);
 int pushAsset(Vault *vault, VaultAsset *asset);
 int changePassword(Vault *vault, char *newPswd);

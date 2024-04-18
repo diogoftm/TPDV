@@ -15,19 +15,32 @@
 
 VaultState getState(Vault *vault) { return vault->state; }
 
-void createVault(Vault *vault)
+void setupVault(Vault *vault)
 {
     vault->state = NOT_YET_PARSED;
     vault->header = NULL;
     vault->asset = NULL;
 }
 
-void createVaultAsset(VaultAsset *vaultAsset, char *name)
+int setupVaultAsset(VaultAsset *vaultAsset, char *name, unsigned char* content, size_t contentSize)
 {
-    memcpy(vaultAsset->name, name, sizeof(vaultAsset->name));
-    memcpy(vaultAsset->hash, "", sizeof(vaultAsset->name));
-    vaultAsset->size = 0;
-    vaultAsset->content = NULL;
+    size_t nameSize = strlen(name) + 1;
+
+    if(nameSize > 32)
+        return -1;
+    
+    memcpy(vaultAsset->name, name, nameSize * sizeof(char));
+
+    //find a way to calculate hash
+    
+    
+
+    vaultAsset->size = contentSize;
+
+
+    vaultAsset->content = (unsigned char*)malloc(contentSize * sizeof(unsigned char));
+    memcpy(vaultAsset->content, content, contentSize * sizeof(unsigned char));
+
     vaultAsset->next = NULL;
     vaultAsset->previous = NULL;
 }
@@ -52,7 +65,7 @@ int copyWithoutNeighborsDeeply(VaultAsset *src, VaultAsset *dst)
 
     if (src->content != NULL)
     {
-        dst->content = (char *)malloc(sizeof(char) * src->size);
+        dst->content = (unsigned char *)malloc(sizeof(unsigned char) * src->size);
         memcpy(dst->content, src->content, src->size);
     }
     else
