@@ -33,47 +33,10 @@
 #ifndef _ENCLAVE1_H_
 #define _ENCLAVE1_H_
 
-#include "VaultState.h"
 
 #if defined(__cplusplus)
 extern "C" {
 #endif
-
-struct VaultHeader
-{
-    char nonce[32];
-    char name[32];
-    char password[32];
-    int numberOfFiles;
-};
-
-struct VaultAsset
-{
-    char hash[32];
-    char name[32];
-    int size;
-    char *content;
-    VaultAsset *next;
-    VaultAsset *previous;
-};
-
-struct Vault
-{
-    VaultHeader *header;
-    VaultAsset *asset;
-    VaultState state;
-};
-
-static VaultState getState(Vault* vault);
-static void createVault(Vault *vault);
-static void createVaultAsset(VaultAsset *vaultAsset, char *name);
-static void createVaultHeader(VaultHeader *vaultHeader, char *name, char *password);
-static int copyWithoutNeighborsDeeply(VaultAsset *src, VaultAsset *dst);
-static int pushAsset(Vault *vault, VaultAsset *asset);
-static int changePassword(Vault *vault, char *newPswd);
-static int fetchAsset(Vault *vault, char name[32], VaultAsset *asset);
-static int loadVault(Vault *vault, const char *data, char *pw);
-static int destroyVault(Vault *vault);
 
 
 

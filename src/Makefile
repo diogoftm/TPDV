@@ -126,8 +126,8 @@ endif
 
 ######## Enclave1 Settings ########
 
-Enclave1_Cpp_Files := Enclave1/Enclave1.cpp
-Enclave1_Include_Paths := -IInclude -IEnclave1 -I$(SGX_SDK)/include -I$(SGX_SDK)/include/tlibc -I$(SGX_SDK)/include/libcxx
+Enclave1_Cpp_Files := Enclave1/Enclave1.cpp Enclave1/Vault.cpp
+Enclave1_Include_Paths := -IInclude -IEnclave1 -IVault -I$(SGX_SDK)/include -I$(SGX_SDK)/include/tlibc -I$(SGX_SDK)/include/libcxx
 
 Enclave1_C_Flags = $(Enclave_C_Flags) $(Enclave1_Include_Paths)
 Enclave1_Cpp_Flags := $(Enclave1_C_Flags) -std=c++11 -nostdinc++
@@ -215,6 +215,8 @@ App/Enclave1_u.o: App/Enclave1_u.c
 	@$(CC) $(App_C_Flags) -c $< -o $@
 	@echo "CC   <=  $<"
 
+
+
 App/%.o: App/%.cpp
 	@$(CXX) $(App_Cpp_Flags) -c $< -o $@
 	@echo "CXX  <=  $<"
@@ -236,6 +238,10 @@ Enclave1/Enclave1_t.c: $(SGX_EDGER8R) Enclave1/Enclave1.edl
 Enclave1/Enclave1_t.o: Enclave1/Enclave1_t.c
 	@$(CC) $(Enclave1_C_Flags) -c $< -o $@
 	@echo "CC   <=  $<"
+
+Enclave1/Vault.o: ./Enclave1/Vault.cpp ./Enclave1/Vault.h
+	g++ -c $< -o $@
+	@echo "GEN  =>  $@"
 
 Enclave1/%.o: Enclave1/%.cpp
 	@$(CXX) $(Enclave1_Cpp_Flags) -c $< -o $@

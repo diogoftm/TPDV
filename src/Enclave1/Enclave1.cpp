@@ -7,6 +7,7 @@
 // #include "sgx_trts.h"
 // #include "sgx_tseal.h"
 #include "Enclave1.h"
+#include "Vault.h"
 #include "Enclave1_t.h"
 
 
@@ -50,6 +51,7 @@ int ecallOpenVault(const char *fileName, size_t fileNameSize, const char *psw, s
 // We need to make sure that the assetName is unique
 int ecallInsertFileAsset(const char *assetName, size_t assetNameSize, const char *fileName, size_t fileNameSize)
 {
+
     enclavePrintf("Hello from insert file asset\n");
     return 0;
 }
@@ -105,128 +107,6 @@ int ecallChangePassword(const char *newPsw, size_t newPswSize)
  * Internal methods
  */
 
-static VaultState getState(Vault *vault) { return vault->state; }
-
-static void createVault(Vault *vault)
-{
-    vault->state = NOT_YET_PARSED;
-    vault->header = NULL;
-    vault->asset = NULL;
-}
-
-static void createVaultAsset(VaultAsset *vaultAsset, char *name)
-{
-    memcpy(vaultAsset->name, name, sizeof(vaultAsset->name));
-    memcpy(vaultAsset->hash, "", sizeof(vaultAsset->name));
-    vaultAsset->size = 0;
-    vaultAsset->content = NULL;
-    vaultAsset->next = NULL;
-    vaultAsset->previous = NULL;
-}
-
-static void createVaultHeader(VaultHeader *vaultHeader, char *name, char *password)
-{
-    memcpy(vaultHeader->name, name, sizeof(vaultHeader->name));
-    memcpy(vaultHeader->nonce, "", sizeof(vaultHeader->nonce)); // mudar para colocar um numero random
-    memcpy(vaultHeader->password, password, sizeof(vaultHeader->password));
-    vaultHeader->numberOfFiles = 0;
-}
-
-static int copyWithoutNeighborsDeeply(VaultAsset *src, VaultAsset *dst)
-{
-    if (src == NULL || dst == NULL)
-        return -1;
-
-    memcpy(dst->hash, src->hash, sizeof(src->hash));
-    memcpy(dst->name, src->name, sizeof(src->name));
-
-    dst->size = src->size;
-
-    if (src->content != NULL)
-    {
-        dst->content = (char *)malloc(sizeof(char) * src->size);
-        memcpy(dst->content, src->content, src->size);
-    }
-    else
-    {
-        dst->content = NULL;
-    }
-
-    dst->next = NULL;
-    dst->previous = NULL;
-
-    return 0;
-}
-
-static int pushAsset(Vault *vault, VaultAsset *asset)
-{
-    // check if it's possible to throw exceptions inside enclave (maybe send errors to unsafe world such as printf)
-    if (getState(vault) != VALID)
-    {
-        return -1;
-    }
-    // make a copy of the asset and store in Vault::asset
-
-    return 1;
-}
-
-static int changePassword(Vault *vault, char *newPswd)
-{
-    memcpy(vault->header->password, newPswd, sizeof(vault->header->password));
-    return 1;
-}
-
-static int fetchAsset(Vault *vault, char name[32], VaultAsset *asset)
-{
-    if (getState(vault) != VALID)
-        return -1;
-
-    VaultAsset *curr = vault->asset;
-    while (curr != NULL)
-    {
-        if (strcmp(name, curr->name) == 0)
-        {
-            copyWithoutNeighborsDeeply(curr, asset);
-            return 0;
-        }
-        curr = curr->next;
-    }
-
-    return -2;
-}
-
-static int loadVault(Vault *vault, const char *data, char *pw)
-{
-    // if hash fails set corrupted State
-    // ...
-
-    vault->state = VALID;
-
-    return 0;
-}
-
-static int destroyVault(Vault *vault)
-{
-    if (vault->state == NOT_YET_PARSED)
-        return 1;
-
-    free(vault->header);
-    VaultAsset *curr = vault->asset;
-    VaultAsset *next;
-    while (curr != NULL)
-    {
-        if (curr->content)
-        {
-            free(curr->content);
-            curr->content = NULL;
-        }
-        next = curr->next;
-        free(curr);
-        curr = next;
-    }
-
-    return 1;
-}
 
 /*
 sgx_status_t saveSafe(sgx_sealed_data_t* sealedData)
