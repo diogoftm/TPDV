@@ -183,33 +183,32 @@ void ocallSaveDataToFile(const char* data, int siz, const char* fileName)
       return; 
   }
 
-  size_t numBytesWritten = fwrite(data, sizeof(char), siz, file); // Write data to the file
+  size_t numBytesWritten = fwrite(data, sizeof(char), siz, file);
 
   fclose(file);
 }
 
 
 void ocallLoadSealedData(char *sealedData, const char *fileName) {
-  FILE *file = fopen(fileName, "rb"); // Open the file in binary mode for reading
+  FILE *file = fopen(fileName, "rb");
 
   if (file == NULL) {
       fprintf(stderr, "Error opening the file.\n");
-      return; // Exit the function if file opening fails
+      return;
   }
 
   fseek(file, 0, SEEK_END);
   size_t fileSize = ftell(file);
   fseek(file, 0, SEEK_SET);
 
-  // Read the data from the file
   size_t bytesRead = fread(sealedData, sizeof(char), fileSize, file);
   if (bytesRead != fileSize) {
       fprintf(stderr, "Error reading from the file.\n");
       fclose(file);
-      return; // Exit the function if reading fails
+      return;
   }
 
-  fclose(file); // Close the file
+  fclose(file);
 }
 
 
