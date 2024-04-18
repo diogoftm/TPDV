@@ -2,6 +2,8 @@
 #define _VAULT_H_
 
 #include <stdlib.h>
+#include "sgx_tcrypto.h"
+
 
 #if defined(__cplusplus)
 extern "C" {
@@ -24,7 +26,7 @@ struct VaultHeader
 
 struct VaultAsset
 {
-    unsigned char hash[32];
+    sgx_sha256_hash_t hash[SGX_SHA256_HASH_SIZE];
     char name[32];
     int size;
     unsigned char *content;
@@ -49,7 +51,6 @@ int changePassword(Vault *vault, char *newPswd);
 int fetchAsset(Vault *vault, char name[32], VaultAsset *asset);
 int loadVault(Vault *vault, const char *data, char *pw);
 int destroyVault(Vault *vault);
-
 
 
 #if defined(__cplusplus)

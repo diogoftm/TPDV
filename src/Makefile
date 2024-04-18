@@ -240,7 +240,7 @@ Enclave1/Enclave1_t.o: Enclave1/Enclave1_t.c
 	@echo "CC   <=  $<"
 
 Enclave1/Vault.o: ./Enclave1/Vault.cpp ./Enclave1/Vault.h
-	g++ -c $< -o $@
+	g++ -c $< -o $@ -I$(SGX_SDK)/include
 	@echo "GEN  =>  $@"
 
 Enclave1/%.o: Enclave1/%.cpp
