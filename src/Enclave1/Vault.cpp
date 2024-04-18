@@ -13,6 +13,7 @@
 #include <stdarg.h>
 #include <stdio.h>
 
+
 VaultState getState(Vault *vault) { return vault->state; }
 
 void setupVault(Vault *vault)
@@ -31,12 +32,9 @@ int setupVaultAsset(VaultAsset *vaultAsset, char *name, unsigned char* content, 
     
     memcpy(vaultAsset->name, name, nameSize * sizeof(char));
 
-    //find a way to calculate hash
+    sgx_sha256_msg(vaultAsset->content, (uint32_t)contentSize, vaultAsset->hash);
     
-    
-
     vaultAsset->size = contentSize;
-
 
     vaultAsset->content = (unsigned char*)malloc(contentSize * sizeof(unsigned char));
     memcpy(vaultAsset->content, content, contentSize * sizeof(unsigned char));
