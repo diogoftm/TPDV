@@ -63,14 +63,15 @@ int ecallOpenVault(const char *fileName, size_t fileNameSize, const char *psw, s
 // We need to make sure that the assetName is unique
 int ecallInsertFileAsset(const char *assetName, size_t assetNameSize, const char *fileName, size_t fileNameSize)
 {
-
-    enclavePrintf("Hello from insert file asset\n");
+    
     return 0;
 }
 
 int ecallInsertAsset(const char *assetName, size_t assetNameSize, const char *assetData, int assetDataSize)
 {
-    enclavePrintf("Hello from insert asset\n");
+    VaultAsset* newAsset = (VaultAsset*)malloc(sizeof(VaultAsset));
+    setupVaultAsset(newAsset, (char*) assetName, (unsigned char*) assetData, assetDataSize);
+    pushAsset(_vault, newAsset);
     return 0;
 }
 
@@ -82,13 +83,15 @@ int ecallListAssets()
         return -1;
     }
     
-    enclavePrintf("Vault asset list: ");
+    enclavePrintf("Vault asset list:\n");
 
     VaultAsset* node = _vault->asset;
 
+    int i = 1;
     while(node != NULL) {
-        enclavePrintf("%s [%s]\n", node->name, node->hash);
+        enclavePrintf("%d -> %s %d\n", i, node->name, node->size);
         node = node->next;
+        i++;
     }
 
     return 0;

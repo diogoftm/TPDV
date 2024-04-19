@@ -18,7 +18,7 @@ VaultState getState(Vault *vault) { return vault->state; }
 
 void setupVault(Vault *vault)
 {
-    vault->state = NOT_YET_PARSED;
+    vault->state = VALID;
     vault->header = NULL;
     vault->asset = NULL;
 }
@@ -77,16 +77,28 @@ int copyWithoutNeighborsDeeply(VaultAsset *src, VaultAsset *dst)
     return 0;
 }
 
- int pushAsset(Vault *vault, VaultAsset *asset)
+int pushAsset(Vault *vault, VaultAsset *asset)
 {
-    // TODO: check if it's possible to throw exceptions inside enclave (maybe send errors to unsafe world such as printf)
     if (getState(vault) != VALID)
     {
         return -1;
     }
-    // TODO: make a copy of the asset and store in Vault::asset
 
-    return 1;
+    VaultAsset *currentAsset = vault->asset;
+
+    if (currentAsset == NULL)
+    {
+        vault->asset = asset;
+        return 0;
+    }
+
+    while (currentAsset->next != NULL)
+        currentAsset = currentAsset->next;
+
+    currentAsset->next = asset;
+    asset->previous = currentAsset;    
+
+    return 0;
 }
 
 int changePassword(Vault *vault, char *newPswd)

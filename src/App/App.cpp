@@ -214,6 +214,20 @@ void ocallLoadSealedData(char *sealedData, const char *fileName)
   fclose(file);
 }
 
+int readStdin(char *value, int maxSize) {
+  if (fgets(value, maxSize, stdin) == NULL) {
+      fprintf(stderr, "Error reading input.\n");
+      return -1;
+  }
+
+  size_t len = strlen(value);
+  if (len > 0 && value[len - 1] == '\n') {
+      value[len - 1] = '\0';
+  }
+
+  return 0;
+}
+
 /*
  * Application entry
  */
@@ -253,7 +267,13 @@ int SGX_CDECL main(int argc, char *argv[])
 
   else if (option == 3)
   {
-    return 0;
+    if ((ret = sgx_destroy_enclave(global_eid1)) != SGX_SUCCESS)
+    {
+      print_error_message(ret, "sgx_destroy_enclave");
+      return 1;
+    }
+    else
+      return 0;
   }
 
   char i = 0;
@@ -295,7 +315,13 @@ int SGX_CDECL main(int argc, char *argv[])
       else
         return 0;
     case 1:
-      // TODO
+      char assetName[32];
+      char content[256];
+      printf("Name -> ");
+      readStdin(assetName, 32);
+      printf("Content -> ");
+      readStdin(content, 256);
+      ecallInsertAsset(global_eid1, ret_val, assetName, strlen(assetName)+1, content, strlen(content)+1);
       break;
     case 2:
       // TODO
