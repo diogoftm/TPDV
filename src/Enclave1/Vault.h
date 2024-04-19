@@ -36,7 +36,7 @@ struct VaultAsset
 
 struct Vault
 {
-    VaultHeader *header;
+    VaultHeader header;
     VaultAsset *asset;
     VaultState state;
 };
