@@ -162,25 +162,26 @@ int initialize_enclave1(void)
   return 0;
 }
 
-void handleCreateVault() {
-  //ask for user input
+void handleCreateVault()
+{
+  // TODO: ask for user input
   int ret_val;
   ecallCreateVault(global_eid1, &ret_val, "Vault", 5, "abc", 3, "abc", 3, "author", 6);
 }
-
 
 void ocall_e1_print_string(const char *str)
 {
   printf("%s", str);
 }
 
-void ocallSaveDataToFile(const char* data, int siz, const char* fileName)
+void ocallSaveDataToFile(const char *data, int siz, const char *fileName)
 {
   FILE *file = fopen(fileName, "wb");
 
-  if (file == NULL) {
-      fprintf(stderr, "Error opening the file.\n");
-      return; 
+  if (file == NULL)
+  {
+    fprintf(stderr, "Error opening the file.\n");
+    return;
   }
 
   size_t numBytesWritten = fwrite(data, sizeof(char), siz, file);
@@ -188,13 +189,14 @@ void ocallSaveDataToFile(const char* data, int siz, const char* fileName)
   fclose(file);
 }
 
-
-void ocallLoadSealedData(char *sealedData, const char *fileName) {
+void ocallLoadSealedData(char *sealedData, const char *fileName)
+{
   FILE *file = fopen(fileName, "rb");
 
-  if (file == NULL) {
-      fprintf(stderr, "Error opening the file.\n");
-      return;
+  if (file == NULL)
+  {
+    fprintf(stderr, "Error opening the file.\n");
+    return;
   }
 
   fseek(file, 0, SEEK_END);
@@ -202,16 +204,15 @@ void ocallLoadSealedData(char *sealedData, const char *fileName) {
   fseek(file, 0, SEEK_SET);
 
   size_t bytesRead = fread(sealedData, sizeof(char), fileSize, file);
-  if (bytesRead != fileSize) {
-      fprintf(stderr, "Error reading from the file.\n");
-      fclose(file);
-      return;
+  if (bytesRead != fileSize)
+  {
+    fprintf(stderr, "Error reading from the file.\n");
+    fclose(file);
+    return;
   }
 
   fclose(file);
 }
-
-
 
 /*
  * Application entry
@@ -245,15 +246,15 @@ int SGX_CDECL main(int argc, char *argv[])
       printf("Info: The vault was successfully opened!\n");
   }
 
-  else if(option == 2) {
+  else if (option == 2)
+  {
     handleCreateVault();
   }
 
-  else if(option == 3) {
+  else if (option == 3)
+  {
     return 0;
   }
-
-
 
   char i = 0;
   char input[100];
@@ -281,7 +282,7 @@ int SGX_CDECL main(int argc, char *argv[])
       i = 1;
     }
 
-    int* ret_val = NULL;
+    int *ret_val = NULL;
 
     switch (option)
     {
@@ -294,19 +295,25 @@ int SGX_CDECL main(int argc, char *argv[])
       else
         return 0;
     case 1:
+      // TODO
       break;
     case 2:
+      // TODO
       break;
     case 3:
       ecallListAssets(global_eid1, ret_val);
       break;
     case 4:
+      // TODO
       break;
     case 5:
+      // TODO
       break;
     case 6:
+      // TODO
       break;
     case 7:
+      // TODO
       break;
     default:
       printf("Error: invalid option\n");

@@ -43,6 +43,7 @@ int ecallCreateVault(const char *vaultName, size_t vaultNameSize, const char *fi
 
     char* sealedData;
 
+    // TODO
     //int siz = sealData(&sealedData, "text\n", sizeof("text\n"));
     //ocallSaveDataToFile(sealedData, siz, "vault");
     //uint8_t* plaintext = (uint8_t*) malloc(64); 

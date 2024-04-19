@@ -46,7 +46,7 @@ int setupVaultAsset(VaultAsset *vaultAsset, char *name, unsigned char* content, 
 void createVaultHeader(VaultHeader *vaultHeader, char *name, char *password)
 {
     memcpy(vaultHeader->name, name, sizeof(vaultHeader->name));
-    memcpy(vaultHeader->nonce, "", sizeof(vaultHeader->nonce)); // mudar para colocar um numero random
+    memcpy(vaultHeader->nonce, "", sizeof(vaultHeader->nonce)); // TODO: mudar para colocar um numero random
     memcpy(vaultHeader->password, password, sizeof(vaultHeader->password));
     vaultHeader->numberOfFiles = 0;
 }
@@ -79,12 +79,12 @@ int copyWithoutNeighborsDeeply(VaultAsset *src, VaultAsset *dst)
 
  int pushAsset(Vault *vault, VaultAsset *asset)
 {
-    // check if it's possible to throw exceptions inside enclave (maybe send errors to unsafe world such as printf)
+    // TODO: check if it's possible to throw exceptions inside enclave (maybe send errors to unsafe world such as printf)
     if (getState(vault) != VALID)
     {
         return -1;
     }
-    // make a copy of the asset and store in Vault::asset
+    // TODO: make a copy of the asset and store in Vault::asset
 
     return 1;
 }
@@ -116,7 +116,7 @@ int fetchAsset(Vault *vault, char name[32], VaultAsset *asset)
 
 int loadVault(Vault *vault, const char *data, char *pw)
 {
-    // if hash fails set corrupted State
+    // TODO: if hash fails set corrupted State
     // ...
 
     vault->state = VALID;
