@@ -18,8 +18,8 @@ VaultState getState(Vault *vault) { return vault->state; }
 
 void setupVault(Vault *vault)
 {
-    vault->state = NOT_YET_PARSED;
-    vault->header = NULL;
+    vault->state = VALID;
+    vault->header = (VaultHeader*)malloc(sizeof(VaultHeader) * 1);
     vault->asset = NULL;
 }
 
@@ -92,7 +92,7 @@ int copyWithoutNeighborsDeeply(VaultAsset *src, VaultAsset *dst)
 int changePassword(Vault *vault, char *newPswd)
 {
     memcpy(vault->header->password, newPswd, sizeof(vault->header->password));
-    return 1;
+    return 0;
 }
 
 int fetchAsset(Vault *vault, char name[32], VaultAsset *asset)
