@@ -19,7 +19,6 @@ VaultState getState(Vault *vault) { return vault->state; }
 void setupVault(Vault *vault)
 {
     vault->state = VALID;
-    vault->header = NULL;
     vault->asset = NULL;
 }
 
@@ -103,8 +102,8 @@ int pushAsset(Vault *vault, VaultAsset *asset)
 
 int changePassword(Vault *vault, char *newPswd)
 {
-    memcpy(vault->header->password, newPswd, sizeof(vault->header->password));
-    return 1;
+    memcpy(vault->header.password, newPswd, sizeof(vault->header.password));
+    return 0;
 }
 
 int fetchAsset(Vault *vault, char name[32], VaultAsset *asset)
@@ -141,7 +140,6 @@ int destroyVault(Vault *vault)
     if (vault->state == NOT_YET_PARSED)
         return 1;
 
-    free(vault->header);
     VaultAsset *curr = vault->asset;
     VaultAsset *next;
     while (curr != NULL)

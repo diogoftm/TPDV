@@ -38,7 +38,7 @@ int ecallCreateVault(const char *vaultName, size_t vaultNameSize, const char *fi
 {
     _vault = (Vault*)malloc(sizeof(Vault));
     setupVault(_vault);
-    enclavePrintf("Vault created successfully");
+    enclavePrintf("Vault created successfully\n");
 
 
     char* sealedData;
@@ -112,8 +112,15 @@ char ecallCheckDigest(const char *assetName, size_t assetNameSize, const char *d
 
 int ecallChangePassword(const char *newPsw, size_t newPswSize)
 {
-    enclavePrintf("Hello from change password\n");
-    return 0;
+    if(newPswSize > 32) {
+        enclavePrintf("Password size exceeded max size (max := %d, received %d)\n", 32, newPswSize);
+        return -1;
+    }
+    
+    changePassword(_vault, (char*)newPsw);
+    enclavePrintf("Sucessfully changed vault password\n");
+
+    return -1;
 }
 
 // we need to had the clone feature, but lets forget that for now

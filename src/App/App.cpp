@@ -169,6 +169,19 @@ void handleCreateVault()
   ecallCreateVault(global_eid1, &ret_val, "Vault", 5, "abc", 3, "abc", 3, "author", 6);
 }
 
+void handleChangePassword() {
+  int ret_val;
+
+  char buffer[128];
+
+  printf("New password: ");
+
+  fgets(buffer, sizeof(buffer), stdin);
+  int len = strlen(buffer);
+
+  ecallChangePassword(global_eid1, &ret_val, buffer, len);
+}
+
 void ocall_e1_print_string(const char *str)
 {
   printf("%s", str);
@@ -336,10 +349,9 @@ int SGX_CDECL main(int argc, char *argv[])
       // TODO
       break;
     case 6:
-      // TODO
       break;
     case 7:
-      // TODO
+      handleChangePassword();
       break;
     default:
       printf("Error: invalid option\n");
