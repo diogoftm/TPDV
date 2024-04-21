@@ -150,38 +150,9 @@ void print_error_message(sgx_status_t ret, const char *sgx_function_name)
 
 sgx_enclave_id_t global_eid1 = 0;
 
-int initialize_enclave1(void)
-{
-  sgx_status_t ret;
-
-  if ((ret = sgx_create_enclave(ENCLAVE1_FILENAME, SGX_DEBUG_FLAG, NULL, NULL, &global_eid1, NULL)) != SGX_SUCCESS)
-  {
-    print_error_message(ret, "sgx_create_enclave");
-    return -1;
-  }
-  return 0;
-}
-
-void handleCreateVault(char* vaultName, char* password, char* author)
-{
-  int returnVal;
-  ecallCreateVault(global_eid1, &returnVal, vaultName, vaultName, password, author);
-}
-
-void handleChangePassword()
-{
-  int ret_val;
-
-  char buffer[128];
-
-  printf("New password: ");
-
-  fgets(buffer, sizeof(buffer), stdin);
-  int len = strlen(buffer);
-
-  ecallChangePassword(global_eid1, &ret_val, buffer, len);
-}
-
+/*
+ * ocalls
+ */
 void ocall_e1_print_string(const char *str)
 {
   printf("%s", str);
@@ -226,6 +197,10 @@ void ocallLoadSealedData(char *sealedData, const char *fileName)
 
   fclose(file);
 }
+
+/*
+ * IO helpers
+ */
 
 int readStdin(char *value, int maxSize)
 {
@@ -282,14 +257,166 @@ char *readFile(char *filename)
 }
 
 /*
- * Application entry
+ * Handlers
+ */
+
+int initialize_enclave1(void)
+{
+  sgx_status_t ret;
+
+  if ((ret = sgx_create_enclave(ENCLAVE1_FILENAME, SGX_DEBUG_FLAG, NULL, NULL, &global_eid1, NULL)) != SGX_SUCCESS)
+  {
+    print_error_message(ret, "sgx_create_enclave");
+    return -1;
+  }
+  return 0;
+}
+
+void handleKillEnclaveAndExit()
+{
+  sgx_status_t ret;
+  if ((ret = sgx_destroy_enclave(global_eid1)) != SGX_SUCCESS)
+  {
+    print_error_message(ret, "sgx_destroy_enclave");
+    exit(0);
+  }
+  else
+    exit(1);
+}
+
+void handleCreateVault(char *vaultName, char *password, char *author)
+{
+  int returnVal;
+  ecallCreateVault(global_eid1, &returnVal, vaultName, vaultName, password, author);
+}
+
+void handleChangePassword()
+{
+  int ret_val;
+
+  char buffer[128];
+
+  printf("New password: ");
+
+  fgets(buffer, sizeof(buffer), stdin);
+  int len = strlen(buffer);
+
+  ecallChangePassword(global_eid1, &ret_val, buffer, len);
+}
+
+void handleSaveAsset()
+{
+  sgx_status_t ret;
+  int ret_val;
+  char assetName[32];
+  char fileName[32];
+
+  printf("Asset name: ");
+  readStdin(assetName, 32);
+  printf("File name: ");
+  readStdin(fileName, 32);
+  if ((ret = ecallSaveAssetToFile(global_eid1, &ret_val, assetName, fileName)) != SGX_SUCCESS)
+  {
+    print_error_message(ret, "ecallSaveAssetToFile");
+    handleKillEnclaveAndExit();
+  }
+  if (ret != 0)
+  {
+    printf("Error: invalid asset");
+    return;
+  }
+}
+
+void handleAddAssetFromKeyboard()
+{
+  sgx_status_t ret;
+  int ret_val;
+  char assetName[32];
+  char content[256];
+
+  printf("Asset name: ");
+  readStdin(assetName, 32);
+  printf("Asset content: ");
+  readStdin(content, 256);
+
+  ecallInsertAsset(global_eid1, &ret_val, assetName, strlen(assetName) + 1, content, strlen(content));
+}
+
+void handleAddAssetFromFile()
+{
+  sgx_status_t ret;
+  int ret_val;
+  char fileName[32];
+  char assetName[32];
+  char *fileContent;
+
+  printf("File name: ");
+  readStdin(fileName, 32);
+  fileContent = readFile(fileName);
+
+  if (fileContent == NULL)
+  {
+    printf("Error: Invalid file\n");
+    return;
+  }
+
+  printf("Asset name: ");
+  readStdin(assetName, 32);
+
+  if (strlen(assetName) == 0)
+  {
+    printf("Error: Asset name cannot be empty\n");
+    return;
+  }
+
+  if ((ret = ecallInsertAsset(global_eid1, &ret_val, assetName, strlen(assetName) + 1, fileContent, strlen(fileContent) + 1)) != SGX_SUCCESS)
+  {
+    print_error_message(ret, "ecallInsertAsset");
+    handleKillEnclaveAndExit();
+  }
+}
+
+void handleListAssets()
+{
+  sgx_status_t ret;
+  int ret_val;
+
+  if ((ret = ecallListAssets(global_eid1, &ret_val)) != SGX_SUCCESS)
+  {
+    print_error_message(ret, "ecallListAsset");
+    handleKillEnclaveAndExit();
+  }
+}
+
+void handlePrintAsset()
+{
+  sgx_status_t ret;
+  int ret_val;
+  char assetName[32];
+
+  printf("Asset name: ");
+  readStdin(assetName, 32);
+  if ((ret = ecallPrintAsset(global_eid1, &ret_val, assetName)) != SGX_SUCCESS)
+  {
+    print_error_message(ret, "ecallGetAsset");
+    handleKillEnclaveAndExit();
+  }
+  if (ret != 0)
+  {
+    printf("Error: invalid asset");
+    return;
+  }
+}
+
+/*
+ * Application
  */
 
 int SGX_CDECL main(int argc, char *argv[])
 {
-  sgx_status_t ret;
   char vaultName[32];
   char input[100];
+  sgx_status_t ret;
 
   if (initialize_enclave1() < 0)
     return 1;
@@ -305,7 +432,7 @@ int SGX_CDECL main(int argc, char *argv[])
     {
       if (strcmp(input, "\n") == 0)
       {
-          printf(">> ");
+        printf(">> ");
       }
       else
       {
@@ -354,20 +481,13 @@ int SGX_CDECL main(int argc, char *argv[])
   }
 
   else if (option == 3)
-  {
-    if ((ret = sgx_destroy_enclave(global_eid1)) != SGX_SUCCESS)
-    {
-      print_error_message(ret, "sgx_destroy_enclave");
-      return 1;
-    }
-    else
-      return 0;
-  }
+    handleKillEnclaveAndExit();
 
   while (1)
   {
     printf("Menu:\n 0 - Exit\n 1 - Add asset from keyboard\n 2 - Add asset from file\n 3 - List assets \
-          \n 4 - Print asset\n 5 - Save asset to file\n 6 - Compare file digest\n 7 - Change password\n[%s] >> ", vaultName);
+          \n 4 - Print asset\n 5 - Save asset to file\n 6 - Compare file digest\n 7 - Change password\n[%s] >> ",
+           vaultName);
 
     while (1)
     {
@@ -376,7 +496,7 @@ int SGX_CDECL main(int argc, char *argv[])
       {
         if (strcmp(input, "\n") == 0)
         {
-            printf("[%s] >> ", vaultName);
+          printf("[%s] >> ", vaultName);
         }
         else
         {
@@ -386,92 +506,25 @@ int SGX_CDECL main(int argc, char *argv[])
       }
     }
 
-    int *ret_val = NULL;
-
     switch (option)
     {
     case 0:
-      if ((ret = sgx_destroy_enclave(global_eid1)) != SGX_SUCCESS)
-      {
-        print_error_message(ret, "sgx_destroy_enclave");
-        return 1;
-      }
-      else
-        return 0;
+      handleKillEnclaveAndExit();
+      break;
     case 1:
-      char assetName[32];
-      char content[256];
-      printf("Asset name: ");
-      readStdin(assetName, 32);
-      printf("Asset content: ");
-      readStdin(content, 256);
-      ecallInsertAsset(global_eid1, ret_val, assetName, strlen(assetName) + 1, content, strlen(content));
+      handleAddAssetFromKeyboard();
       break;
     case 2:
-      char fileName[32];
-      char *fileContent;
-
-      printf("File name: ");
-      readStdin(fileName, 32);
-      fileContent = readFile(fileName);
-
-      if (fileContent == NULL)
-      {
-        printf("Error: Invalid file\n");
-        continue;
-      }
-
-      printf("Asset name: ");
-      readStdin(assetName, 32);
-
-      if (strlen(assetName) == 0)
-      {
-        printf("Error: Asset name cannot be empty\n");
-        continue;
-      }
-
-      if ((ret = ecallInsertAsset(global_eid1, ret_val, assetName, strlen(assetName) + 1, fileContent, strlen(fileContent) + 1)) != SGX_SUCCESS)
-      {
-        print_error_message(ret, "ecallInsertAsset");
-        return 1;
-      }
+      handleAddAssetFromFile();
       break;
     case 3:
-      if ((ret = ecallListAssets(global_eid1, ret_val)) != SGX_SUCCESS)
-      {
-        print_error_message(ret, "ecallListAsset");
-        return 1;
-      }
+      handleListAssets();
       break;
     case 4:
-      printf("Asset name: ");
-      readStdin(assetName, 32);
-      if ((ret = ecallPrintAsset(global_eid1, ret_val, assetName)) != SGX_SUCCESS)
-      {
-        print_error_message(ret, "ecallGetAsset");
-        return 1;
-      }
-      if (ret_val != 0)
-      {
-        printf("Error: invalid asset");
-        continue;
-      }
+      handlePrintAsset();
       break;
     case 5:
-      printf("Asset name: ");
-      readStdin(assetName, 32);
-      printf("File name: ");
-      readStdin(fileName, 32);
-      if ((ret = ecallSaveAssetToFile(global_eid1, ret_val, assetName, fileName)) != SGX_SUCCESS)
-      {
-        print_error_message(ret, "ecallSaveAssetToFile");
-        return 1;
-      }
-      if (ret_val != 0)
-      {
-        printf("Error: invalid asset");
-        continue;
-      }
+      handleSaveAsset();
       break;
     case 6:
       break;
