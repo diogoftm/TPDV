@@ -21,6 +21,7 @@ struct VaultHeader
     unsigned char nonce[32];
     char name[32];
     char password[32];
+    char author[64];
     int numberOfFiles;
 };
 
@@ -44,7 +45,7 @@ struct Vault
 VaultState getState(Vault* vault);
 void setupVault(Vault *vault);
 int setupVaultAsset(VaultAsset *vaultAsset, char *name, unsigned char* content, size_t contentSize);
-void setupVaultHeader(VaultHeader *vaultHeader, char *name, char *password);
+void setupVaultHeader(VaultHeader *vaultHeader, char *name, char *password, char *author);
 int copyWithoutNeighborsDeeply(VaultAsset *src, VaultAsset *dst);
 int pushAsset(Vault *vault, VaultAsset *asset);
 int changePassword(Vault *vault, char *newPswd);

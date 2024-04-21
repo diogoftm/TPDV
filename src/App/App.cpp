@@ -162,11 +162,10 @@ int initialize_enclave1(void)
   return 0;
 }
 
-void handleCreateVault()
+void handleCreateVault(char* vaultName, char* password, char* author)
 {
-  // TODO: ask for user input
-  int ret_val;
-  ecallCreateVault(global_eid1, &ret_val, "Vault", 5, "abc", 3, "abc", 3, "author", 6);
+  int returnVal;
+  ecallCreateVault(global_eid1, &returnVal, vaultName, vaultName, password, author);
 }
 
 void handleChangePassword()
@@ -230,6 +229,7 @@ void ocallLoadSealedData(char *sealedData, const char *fileName)
 
 int readStdin(char *value, int maxSize)
 {
+  fflush(stdin);
   if (fgets(value, maxSize, stdin) == NULL)
   {
     fprintf(stderr, "Error reading input.\n");
@@ -288,6 +288,8 @@ char *readFile(char *filename)
 int SGX_CDECL main(int argc, char *argv[])
 {
   sgx_status_t ret;
+  char vaultName[32];
+  char input[100];
 
   if (initialize_enclave1() < 0)
     return 1;
@@ -296,15 +298,35 @@ int SGX_CDECL main(int argc, char *argv[])
 
   int option;
 
-  if (scanf("%d", &option) <= 0)
+  while (1)
   {
-    return 1;
+    fflush(stdin);
+    if (fgets(input, sizeof(input), stdin) != NULL)
+    {
+      if (strcmp(input, "\n") == 0)
+      {
+          printf(">> ");
+      }
+      else
+      {
+        option = strtol(input, NULL, 10);
+        break;
+      }
+    }
   }
 
   if (option == 1)
   {
     int returnVal = 1;
-    if ((ret = ecallOpenVault(global_eid1, &returnVal, "Vault", 5, "abc", 3)) != SGX_SUCCESS)
+    char password[128];
+
+    printf("Vault name: ");
+    readStdin(vaultName, 32);
+
+    printf("Password: ");
+    readStdin(password, 32);
+
+    if ((ret = ecallOpenVault(global_eid1, &returnVal, vaultName, strlen(vaultName), password, strlen(password))) != SGX_SUCCESS)
     {
       print_error_message(ret, "Ups! Something went wrong...");
       return 1;
@@ -315,7 +337,20 @@ int SGX_CDECL main(int argc, char *argv[])
 
   else if (option == 2)
   {
-    handleCreateVault();
+    int returnVal = 1;
+    char password[128];
+    char ownerName[64];
+
+    printf("Vault name: ");
+    readStdin(vaultName, 32);
+
+    printf("Owner name: ");
+    readStdin(password, 64);
+
+    printf("Password: ");
+    readStdin(password, 128);
+
+    handleCreateVault(vaultName, password, ownerName);
   }
 
   else if (option == 3)
@@ -329,12 +364,10 @@ int SGX_CDECL main(int argc, char *argv[])
       return 0;
   }
 
-  char i = 0;
-  char input[100];
   while (1)
   {
-    printf("Menu:\n0 - Exit\n1 - Add asset from keyboard\n2 - Add asset from file\n3 - List assets \
-          \n4 - Print asset\n5 - Save asset to file\n6 - Compare file digest\n7 - Change password\n>>> ");
+    printf("Menu:\n 0 - Exit\n 1 - Add asset from keyboard\n 2 - Add asset from file\n 3 - List assets \
+          \n 4 - Print asset\n 5 - Save asset to file\n 6 - Compare file digest\n 7 - Change password\n[%s] >> ", vaultName);
 
     while (1)
     {
@@ -343,8 +376,7 @@ int SGX_CDECL main(int argc, char *argv[])
       {
         if (strcmp(input, "\n") == 0)
         {
-          if (i != 0)
-            printf(">>> ");
+            printf("[%s] >> ", vaultName);
         }
         else
         {
@@ -352,7 +384,6 @@ int SGX_CDECL main(int argc, char *argv[])
           break;
         }
       }
-      i = 1;
     }
 
     int *ret_val = NULL;
@@ -370,9 +401,9 @@ int SGX_CDECL main(int argc, char *argv[])
     case 1:
       char assetName[32];
       char content[256];
-      printf("Asset name -> ");
+      printf("Asset name: ");
       readStdin(assetName, 32);
-      printf("Asset content -> ");
+      printf("Asset content: ");
       readStdin(content, 256);
       ecallInsertAsset(global_eid1, ret_val, assetName, strlen(assetName) + 1, content, strlen(content));
       break;
@@ -380,7 +411,7 @@ int SGX_CDECL main(int argc, char *argv[])
       char fileName[32];
       char *fileContent;
 
-      printf("File name -> ");
+      printf("File name: ");
       readStdin(fileName, 32);
       fileContent = readFile(fileName);
 
@@ -390,7 +421,7 @@ int SGX_CDECL main(int argc, char *argv[])
         continue;
       }
 
-      printf("Asset name -> ");
+      printf("Asset name: ");
       readStdin(assetName, 32);
 
       if (strlen(assetName) == 0)
@@ -413,7 +444,7 @@ int SGX_CDECL main(int argc, char *argv[])
       }
       break;
     case 4:
-      printf("Asset name -> ");
+      printf("Asset name: ");
       readStdin(assetName, 32);
       if ((ret = ecallPrintAsset(global_eid1, ret_val, assetName)) != SGX_SUCCESS)
       {
@@ -427,9 +458,9 @@ int SGX_CDECL main(int argc, char *argv[])
       }
       break;
     case 5:
-      printf("Asset name -> ");
+      printf("Asset name: ");
       readStdin(assetName, 32);
-      printf("File name -> ");
+      printf("File name: ");
       readStdin(fileName, 32);
       if ((ret = ecallSaveAssetToFile(global_eid1, ret_val, assetName, fileName)) != SGX_SUCCESS)
       {

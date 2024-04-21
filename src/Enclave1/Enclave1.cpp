@@ -31,16 +31,18 @@ void enclavePrintf(const char *fmt, ...)
  * Ecall interface
  */
 
-int ecallCreateVault(const char *vaultName, size_t vaultNameSize, const char *fileName, size_t fileNameSize,
-                     const char *psw, size_t pswSize, const char *author, size_t authorSize)
+int ecallCreateVault(const char *vaultName, const char *fileName, const char *psw, const char *author)
 {
     _vault = (Vault *)malloc(sizeof(Vault));
     setupVault(_vault);
+
+    setupVaultHeader(&_vault->header, (char*) vaultName, (char*) psw, (char*) author);
+
     enclavePrintf("Vault created successfully\n");
 
-    char *sealedData;
 
     // TODO
+    // char *sealedData;
     // int siz = sealData(&sealedData, "text\n", sizeof("text\n"));
     // ocallSaveDataToFile(sealedData, siz, "vault");
     // uint8_t* plaintext = (uint8_t*) malloc(64);
@@ -98,7 +100,7 @@ int ecallPrintAsset(char *name)
 
     if (node != NULL)
     {
-        enclavePrintf("-----------\n '%s' content \n-----------\n%s\n-----------\n", name, node->content);
+        enclavePrintf("-----------\n'%s' content \n-----------\n%s\n-----------\n", name, node->content);
         return 0;
     }
 

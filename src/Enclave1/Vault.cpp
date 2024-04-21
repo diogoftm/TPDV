@@ -40,13 +40,16 @@ int setupVaultAsset(VaultAsset *vaultAsset, char *name, unsigned char* content, 
 
     vaultAsset->next = NULL;
     vaultAsset->previous = NULL;
+    
+    return 0;
 }
 
-void createVaultHeader(VaultHeader *vaultHeader, char *name, char *password)
+void setupVaultHeader(VaultHeader *vaultHeader, char *name, char *password, char* author)
 {
     memcpy(vaultHeader->name, name, sizeof(vaultHeader->name));
     memcpy(vaultHeader->nonce, "", sizeof(vaultHeader->nonce)); // TODO: mudar para colocar um numero random
     memcpy(vaultHeader->password, password, sizeof(vaultHeader->password));
+    memcpy(vaultHeader->author, author, sizeof(vaultHeader->author));
     vaultHeader->numberOfFiles = 0;
 }
 
