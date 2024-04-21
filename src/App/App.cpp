@@ -169,7 +169,8 @@ void handleCreateVault()
   ecallCreateVault(global_eid1, &ret_val, "Vault", 5, "abc", 3, "abc", 3, "author", 6);
 }
 
-void handleChangePassword() {
+void handleChangePassword()
+{
   int ret_val;
 
   char buffer[128];
@@ -227,18 +228,57 @@ void ocallLoadSealedData(char *sealedData, const char *fileName)
   fclose(file);
 }
 
-int readStdin(char *value, int maxSize) {
-  if (fgets(value, maxSize, stdin) == NULL) {
-      fprintf(stderr, "Error reading input.\n");
-      return -1;
+int readStdin(char *value, int maxSize)
+{
+  if (fgets(value, maxSize, stdin) == NULL)
+  {
+    fprintf(stderr, "Error reading input.\n");
+    return -1;
   }
 
   size_t len = strlen(value);
-  if (len > 0 && value[len - 1] == '\n') {
-      value[len - 1] = '\0';
+  if (len > 0 && value[len - 1] == '\n')
+  {
+    value[len - 1] = '\0';
   }
 
   return 0;
+}
+
+char *readFile(char *filename)
+{
+  FILE *file = fopen(filename, "r");
+  if (file == NULL)
+  {
+    fprintf(stderr, "Error opening file.\n");
+    return NULL;
+  }
+
+  fseek(file, 0, SEEK_END);
+  long file_size = ftell(file);
+  fseek(file, 0, SEEK_SET);
+
+  char *buffer = (char *)malloc(file_size + 1);
+  if (buffer == NULL)
+  {
+    fprintf(stderr, "Memory allocation failed.\n");
+    fclose(file);
+    return NULL;
+  }
+
+  size_t bytes_read = fread(buffer, 1, file_size, file);
+  if (bytes_read != file_size)
+  {
+    fprintf(stderr, "Error reading file.\n");
+    fclose(file);
+    free(buffer);
+    return NULL;
+  }
+
+  buffer[file_size] = '\0';
+
+  fclose(file);
+  return buffer;
 }
 
 /*
@@ -334,13 +374,43 @@ int SGX_CDECL main(int argc, char *argv[])
       readStdin(assetName, 32);
       printf("Content -> ");
       readStdin(content, 256);
-      ecallInsertAsset(global_eid1, ret_val, assetName, strlen(assetName)+1, content, strlen(content)+1);
+      ecallInsertAsset(global_eid1, ret_val, assetName, strlen(assetName) + 1, content, strlen(content) + 1);
       break;
     case 2:
-      // TODO
+      char fileName[32];
+      char *fileContent;
+
+      printf("File name -> ");
+      readStdin(fileName, 32);
+      fileContent = readFile(fileName);
+
+      if (fileContent == NULL)
+      {
+        printf("Error: Invalid file\n");
+        continue;
+      }
+
+      printf("Asset name -> ");
+      readStdin(assetName, 32);
+
+      if (strlen(assetName) == 0)
+      {
+        printf("Error: Asset name cannot be empty\n");
+        continue;
+      }
+
+      if ((ret = ecallInsertAsset(global_eid1, ret_val, assetName, strlen(assetName) + 1, fileContent, strlen(fileContent) + 1)) != SGX_SUCCESS)
+      {
+        print_error_message(ret, "ecallInsertAsset");
+        return 1;
+      }
       break;
     case 3:
-      ecallListAssets(global_eid1, ret_val);
+      if ((ret = ecallListAssets(global_eid1, ret_val)) != SGX_SUCCESS)
+      {
+        print_error_message(ret, "ecallInsertAsset");
+        return 1;
+      }
       break;
     case 4:
       // TODO
