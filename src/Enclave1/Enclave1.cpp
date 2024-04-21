@@ -10,9 +10,7 @@
 #include "Vault.h"
 #include "Enclave1_t.h"
 
-
-Vault* _vault = NULL;
-
+Vault *_vault = NULL;
 
 /*
  * Just a printf
@@ -36,20 +34,19 @@ void enclavePrintf(const char *fmt, ...)
 int ecallCreateVault(const char *vaultName, size_t vaultNameSize, const char *fileName, size_t fileNameSize,
                      const char *psw, size_t pswSize, const char *author, size_t authorSize)
 {
-    _vault = (Vault*)malloc(sizeof(Vault));
+    _vault = (Vault *)malloc(sizeof(Vault));
     setupVault(_vault);
     enclavePrintf("Vault created successfully\n");
 
-
-    char* sealedData;
+    char *sealedData;
 
     // TODO
-    //int siz = sealData(&sealedData, "text\n", sizeof("text\n"));
-    //ocallSaveDataToFile(sealedData, siz, "vault");
-    //uint8_t* plaintext = (uint8_t*) malloc(64); 
-    //unsealData(sealedData, plaintext);
-    //unsealDataFromFile("vault", plaintext); // this does not work
-    //enclavePrintf((char*) plaintext);
+    // int siz = sealData(&sealedData, "text\n", sizeof("text\n"));
+    // ocallSaveDataToFile(sealedData, siz, "vault");
+    // uint8_t* plaintext = (uint8_t*) malloc(64);
+    // unsealData(sealedData, plaintext);
+    // unsealDataFromFile("vault", plaintext); // this does not work
+    // enclavePrintf((char*) plaintext);
 
     return 0;
 }
@@ -60,17 +57,10 @@ int ecallOpenVault(const char *fileName, size_t fileNameSize, const char *psw, s
     return 0;
 }
 
-// We need to make sure that the assetName is unique
-int ecallInsertFileAsset(const char *assetName, size_t assetNameSize, const char *fileName, size_t fileNameSize)
-{
-    
-    return 0;
-}
-
 int ecallInsertAsset(const char *assetName, size_t assetNameSize, const char *assetData, int assetDataSize)
 {
-    VaultAsset* newAsset = (VaultAsset*)malloc(sizeof(VaultAsset));
-    setupVaultAsset(newAsset, (char*) assetName, (unsigned char*) assetData, assetDataSize);
+    VaultAsset *newAsset = (VaultAsset *)malloc(sizeof(VaultAsset));
+    setupVaultAsset(newAsset, (char *)assetName, (unsigned char *)assetData, assetDataSize);
     pushAsset(_vault, newAsset);
     return 0;
 }
@@ -78,18 +68,20 @@ int ecallInsertAsset(const char *assetName, size_t assetNameSize, const char *as
 // To add value, maybe we can add some parameters to this
 int ecallListAssets()
 {
-    if(getState(_vault) != VALID) {
+    if (getState(_vault) != VALID)
+    {
         enclavePrintf("Unable to list assets, vault is not in a valid state\n");
         return -1;
     }
-    
+
     enclavePrintf("Vault asset list:\n");
 
-    VaultAsset* node = _vault->asset;
+    VaultAsset *node = _vault->asset;
 
     int i = 1;
-    while(node != NULL) {
-        enclavePrintf("%d -> %s %d\n", i, node->name, node->size);
+    while (node != NULL)
+    {
+        enclavePrintf("%d - name: %s , size:%d\n", i, node->name, node->size);
         node = node->next;
         i++;
     }
@@ -97,10 +89,36 @@ int ecallListAssets()
     return 0;
 }
 
-int ecallGetAsset(char *name, size_t nameSize)
+int ecallPrintAsset(char *name)
 {
-    enclavePrintf("Hello from get asset\n");
-    return 0;
+    VaultAsset *node = _vault->asset;
+
+    while (node != NULL && strcmp(node->name, name) != 0)
+        node = node->next;
+
+    if (node != NULL)
+    {
+        enclavePrintf("-----------\n '%s' content \n-----------\n%s\n-----------\n", name, node->content);
+        return 0;
+    }
+
+    return 1;
+}
+
+int ecallSaveAssetToFile(char *assetName, char *fileName)
+{
+    VaultAsset *node = _vault->asset;
+
+    while (node != NULL && strcmp(node->name, assetName) != 0)
+        node = node->next;
+
+    if (node != NULL)
+    {
+        ocallSaveDataToFile((const char *)node->content, node->size, fileName);
+        return 0;
+    }
+
+    return 1;
 }
 
 // maybe the digest argument can be changed to a more appropiate type
@@ -112,12 +130,13 @@ char ecallCheckDigest(const char *assetName, size_t assetNameSize, const char *d
 
 int ecallChangePassword(const char *newPsw, size_t newPswSize)
 {
-    if(newPswSize > 32) {
+    if (newPswSize > 32)
+    {
         enclavePrintf("Password size exceeded max size (max := %d, received %d)\n", 32, newPswSize);
         return -1;
     }
-    
-    changePassword(_vault, (char*)newPsw);
+
+    changePassword(_vault, (char *)newPsw);
     enclavePrintf("Sucessfully changed vault password\n");
 
     return -1;
@@ -129,34 +148,35 @@ int ecallChangePassword(const char *newPsw, size_t newPswSize)
  * Internal methods
  */
 
-int sealData(char** sealedData, char* data, size_t dataSize)
+int sealData(char **sealedData, char *data, size_t dataSize)
 {
     sgx_status_t res;
     uint32_t plaintext_len = dataSize;
-    uint8_t* plaintext = (uint8_t*) malloc(plaintext_len);
+    uint8_t *plaintext = (uint8_t *)malloc(plaintext_len);
     memcpy(plaintext, data, plaintext_len);
 
     uint32_t ciph_size = sgx_calc_sealed_data_size(0, plaintext_len);
-    *sealedData = (char*) malloc(ciph_size);
+    *sealedData = (char *)malloc(ciph_size);
 
-    res = sgx_seal_data(0, NULL, plaintext_len, plaintext, ciph_size, (sgx_sealed_data_t *) *sealedData);
+    res = sgx_seal_data(0, NULL, plaintext_len, plaintext, ciph_size, (sgx_sealed_data_t *)*sealedData);
 
     return ciph_size;
 }
 
-sgx_status_t unsealData(char* sealedData, uint8_t* plaintext)
+sgx_status_t unsealData(char *sealedData, uint8_t *plaintext)
 {
     sgx_status_t res;
     uint32_t size = 6;
 
-    res = sgx_unseal_data((sgx_sealed_data_t *) sealedData, NULL, NULL, plaintext, &size);
+    res = sgx_unseal_data((sgx_sealed_data_t *)sealedData, NULL, NULL, plaintext, &size);
     return res;
 }
 
-void unsealDataFromFile(char* fileName, uint8_t* plaintext)
+void unsealDataFromFile(char *fileName, uint8_t *plaintext)
 {
-    char* sealedData = (char*) malloc(256);
-    if (sealedData == NULL) {
+    char *sealedData = (char *)malloc(256);
+    if (sealedData == NULL)
+    {
         enclavePrintf("Error 1\n");
         return;
     }
@@ -165,11 +185,10 @@ void unsealDataFromFile(char* fileName, uint8_t* plaintext)
 
     sgx_status_t res = unsealData(sealedData, plaintext);
 
-    if (res != SGX_SUCCESS) {
+    if (res != SGX_SUCCESS)
+    {
         enclavePrintf("Error 2\n");
     }
 
     free(sealedData);
 }
-
-

@@ -190,7 +190,7 @@ void ocall_e1_print_string(const char *str)
 
 void ocallSaveDataToFile(const char *data, int siz, const char *fileName)
 {
-  FILE *file = fopen(fileName, "wb");
+  FILE *file = fopen(fileName, "w");
 
   if (file == NULL)
   {
@@ -370,11 +370,11 @@ int SGX_CDECL main(int argc, char *argv[])
     case 1:
       char assetName[32];
       char content[256];
-      printf("Name -> ");
+      printf("Asset name -> ");
       readStdin(assetName, 32);
-      printf("Content -> ");
+      printf("Asset content -> ");
       readStdin(content, 256);
-      ecallInsertAsset(global_eid1, ret_val, assetName, strlen(assetName) + 1, content, strlen(content) + 1);
+      ecallInsertAsset(global_eid1, ret_val, assetName, strlen(assetName) + 1, content, strlen(content));
       break;
     case 2:
       char fileName[32];
@@ -408,15 +408,39 @@ int SGX_CDECL main(int argc, char *argv[])
     case 3:
       if ((ret = ecallListAssets(global_eid1, ret_val)) != SGX_SUCCESS)
       {
-        print_error_message(ret, "ecallInsertAsset");
+        print_error_message(ret, "ecallListAsset");
         return 1;
       }
       break;
     case 4:
-      // TODO
+      printf("Asset name -> ");
+      readStdin(assetName, 32);
+      if ((ret = ecallPrintAsset(global_eid1, ret_val, assetName)) != SGX_SUCCESS)
+      {
+        print_error_message(ret, "ecallGetAsset");
+        return 1;
+      }
+      if (ret_val != 0)
+      {
+        printf("Error: invalid asset");
+        continue;
+      }
       break;
     case 5:
-      // TODO
+      printf("Asset name -> ");
+      readStdin(assetName, 32);
+      printf("File name -> ");
+      readStdin(fileName, 32);
+      if ((ret = ecallSaveAssetToFile(global_eid1, ret_val, assetName, fileName)) != SGX_SUCCESS)
+      {
+        print_error_message(ret, "ecallSaveAssetToFile");
+        return 1;
+      }
+      if (ret_val != 0)
+      {
+        printf("Error: invalid asset");
+        continue;
+      }
       break;
     case 6:
       break;
