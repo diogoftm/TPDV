@@ -30,13 +30,13 @@ int setupVaultAsset(VaultAsset *vaultAsset, char *name, unsigned char* content, 
         return -1;
     
     memcpy(vaultAsset->name, name, nameSize * sizeof(char));
-
-    sgx_sha256_msg(vaultAsset->content, (uint32_t)contentSize, vaultAsset->hash);
     
     vaultAsset->size = contentSize;
 
     vaultAsset->content = (unsigned char*)malloc(contentSize * sizeof(unsigned char));
     memcpy(vaultAsset->content, content, contentSize * sizeof(unsigned char));
+
+    sgx_sha256_msg(vaultAsset->content, (uint32_t)contentSize-1, vaultAsset->hash);
 
     vaultAsset->next = NULL;
     vaultAsset->previous = NULL;

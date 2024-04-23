@@ -36,10 +36,9 @@ int ecallCreateVault(const char *vaultName, const char *fileName, const char *ps
     _vault = (Vault *)malloc(sizeof(Vault));
     setupVault(_vault);
 
-    setupVaultHeader(&_vault->header, (char*) vaultName, (char*) psw, (char*) author);
+    setupVaultHeader(&_vault->header, (char *)vaultName, (char *)psw, (char *)author);
 
     enclavePrintf("Vault created successfully\n");
-
 
     // TODO
     // char *sealedData;
@@ -61,6 +60,7 @@ int ecallOpenVault(const char *fileName, size_t fileNameSize, const char *psw, s
 
 int ecallInsertAsset(const char *assetName, size_t assetNameSize, const char *assetData, int assetDataSize)
 {
+
     VaultAsset *newAsset = (VaultAsset *)malloc(sizeof(VaultAsset));
     setupVaultAsset(newAsset, (char *)assetName, (unsigned char *)assetData, assetDataSize);
     pushAsset(_vault, newAsset);
@@ -83,7 +83,7 @@ int ecallListAssets()
     int i = 1;
     while (node != NULL)
     {
-        enclavePrintf("%d - name: %s , size:%d\n", i, node->name, node->size);
+        enclavePrintf("%d - name: %s , size: %d \n", i, node->name, node->size);
         node = node->next;
         i++;
     }
@@ -124,10 +124,17 @@ int ecallSaveAssetToFile(char *assetName, char *fileName)
 }
 
 // maybe the digest argument can be changed to a more appropiate type
-char ecallCheckDigest(const char *assetName, size_t assetNameSize, const char *digest)
+char ecallCheckDigest(const char *assetName, const char *digest)
 {
-    enclavePrintf("Hello from check digest\n");
-    return 0;
+    VaultAsset *node = _vault->asset;
+
+    while (node != NULL && strcmp(node->name, assetName) != 0)
+        node = node->next;
+
+    if (node != NULL)
+        return strcmp((char *)node->hash, digest);
+
+    return -2;
 }
 
 int ecallChangePassword(const char *newPsw, size_t newPswSize)

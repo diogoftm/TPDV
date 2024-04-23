@@ -204,7 +204,6 @@ void ocallLoadSealedData(char *sealedData, const char *fileName)
 
 int readStdin(char *value, int maxSize)
 {
-  fflush(stdin);
   if (fgets(value, maxSize, stdin) == NULL)
   {
     fprintf(stderr, "Error reading input.\n");
@@ -216,6 +215,8 @@ int readStdin(char *value, int maxSize)
   {
     value[len - 1] = '\0';
   }
+
+  fflush(stdin);
 
   return 0;
 }
@@ -254,6 +255,25 @@ char *readFile(char *filename)
 
   fclose(file);
   return buffer;
+}
+
+void hexStringToCharArray(const char *hexString, char **output)
+{
+  size_t len = strlen(hexString);
+
+  *output = (char *)malloc((len / 2) + 1);
+  if (*output == NULL)
+  {
+    fprintf(stderr, "Memory allocation failed.\n");
+    exit(1);
+  }
+
+  for (size_t i = 0; i < len; i += 2)
+  {
+    sscanf(hexString + i, "%2hhx", *output + i / 2);
+  }
+
+  (*output)[len / 2] = '\0';
 }
 
 /*
@@ -401,11 +421,41 @@ void handlePrintAsset()
     print_error_message(ret, "ecallGetAsset");
     handleKillEnclaveAndExit();
   }
-  if (ret != 0)
+  if (ret_val != 0)
   {
     printf("Error: invalid asset");
     return;
   }
+}
+
+void handleCompareHash()
+{
+  char assetName[32];
+  char hashHex[72];
+  char *hash;
+  sgx_status_t ret;
+  char ret_val;
+
+  printf("Asset name: ");
+  readStdin(assetName, 32);
+
+  printf("Asset hash (sha256): ");
+  readStdin(hashHex, 128);
+
+  hexStringToCharArray(hashHex, &hash);
+
+  if ((ret = ecallCheckDigest(global_eid1, &ret_val, assetName, hash)) != SGX_SUCCESS)
+  {
+    print_error_message(ret, "ecallGetAsset");
+    handleKillEnclaveAndExit();
+  }
+
+  if (ret_val == -2)
+    printf("Error: invalid asset\n");
+  else if (ret_val == 0)
+    printf("The hashes are equal\n");
+  else
+    printf("The hashes don't match\n");
 }
 
 /*
@@ -421,7 +471,7 @@ int SGX_CDECL main(int argc, char *argv[])
   if (initialize_enclave1() < 0)
     return 1;
 
-  printf("Do you want to open or create a vault?\n1 - Open\n2 - Create\n3 - Close\n>>> ");
+  printf("Do you want to open or create a vault?\n1 - Open\n2 - Create\n3 - Close\n>> ");
 
   int option;
 
@@ -485,22 +535,27 @@ int SGX_CDECL main(int argc, char *argv[])
 
   while (1)
   {
-    printf("Menu:\n 0 - Exit\n 1 - Add asset from keyboard\n 2 - Add asset from file\n 3 - List assets \
-          \n 4 - Print asset\n 5 - Save asset to file\n 6 - Compare file digest\n 7 - Change password\n[%s] >> ",
-           vaultName);
+    printf("Menu:\n -1 - Exit\n  1 - Add asset from keyboard\n  2 - Add asset from file\n  3 - List assets \
+          \n  4 - Print asset\n  5 - Save asset to file\n  6 - Compare file digest\n  7 - Change password\n");
 
     while (1)
     {
+      printf("[%s] >> ", vaultName);
       fflush(stdin);
       if (fgets(input, sizeof(input), stdin) != NULL)
       {
         if (strcmp(input, "\n") == 0)
         {
-          printf("[%s] >> ", vaultName);
+          continue;
         }
         else
         {
           option = strtol(input, NULL, 10);
+          if (option == NULL)
+          {
+            printf("Error: invalid option\n");
+            continue;
+          }
           break;
         }
       }
@@ -508,7 +563,7 @@ int SGX_CDECL main(int argc, char *argv[])
 
     switch (option)
     {
-    case 0:
+    case -1:
       handleKillEnclaveAndExit();
       break;
     case 1:
@@ -527,6 +582,7 @@ int SGX_CDECL main(int argc, char *argv[])
       handleSaveAsset();
       break;
     case 6:
+      handleCompareHash();
       break;
     case 7:
       handleChangePassword();
