@@ -423,7 +423,7 @@ void handlePrintAsset()
   }
   if (ret_val != 0)
   {
-    printf("Error: invalid asset");
+    printf("Error: invalid asset\n");
     return;
   }
 }
