@@ -33,6 +33,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <assert.h>
+#include <errno.h>
 
 #include "sgx_urts.h"
 #include "App.h"
@@ -471,12 +472,12 @@ int SGX_CDECL main(int argc, char *argv[])
   if (initialize_enclave1() < 0)
     return 1;
 
-  printf("Do you want to open or create a vault?\n1 - Open\n2 - Create\n3 - Close\n>> ");
 
   int option;
 
   while (1)
   {
+    printf("Do you want to open or create a vault?\n1 - Open\n2 - Create\n3 - Close\n>> ");
     fflush(stdin);
     if (fgets(input, sizeof(input), stdin) != NULL)
     {
@@ -486,7 +487,14 @@ int SGX_CDECL main(int argc, char *argv[])
       }
       else
       {
-        option = strtol(input, NULL, 10);
+        char* endptr;
+        errno = 0;
+        option = strtol(input, &endptr, 10);
+
+          if (errno != 0 || input == endptr || option < 1 || option > 3) {
+            printf("Error: invalid option\n");
+            continue;
+          }
         break;
       }
     }
@@ -550,9 +558,11 @@ int SGX_CDECL main(int argc, char *argv[])
         }
         else
         {
-          option = strtol(input, NULL, 10);
-          if (option == NULL)
-          {
+          errno = 0;
+          char* endptr;
+          option = strtol(input, &endptr, 10);
+
+          if (errno != 0 || input == endptr) {
             printf("Error: invalid option\n");
             continue;
           }
