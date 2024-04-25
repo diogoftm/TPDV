@@ -319,7 +319,8 @@ void handleChangePassword()
 
   printf("New password: ");
 
-  fgets(buffer, sizeof(buffer), stdin);
+  readStdin(buffer, 32);
+
   int len = strlen(buffer);
 
   ecallChangePassword(global_eid1, &ret_val, buffer, len);
