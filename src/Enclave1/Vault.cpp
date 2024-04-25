@@ -82,9 +82,8 @@ int copyWithoutNeighborsDeeply(VaultAsset *src, VaultAsset *dst)
 int pushAsset(Vault *vault, VaultAsset *asset)
 {
     if (getState(vault) != VALID)
-    {
         return -1;
-    }
+
 
     VaultAsset *currentAsset = vault->asset;
 
@@ -94,8 +93,15 @@ int pushAsset(Vault *vault, VaultAsset *asset)
         return 0;
     }
 
-    while (currentAsset->next != NULL)
+    while (currentAsset->next != NULL) {
+        if (strcmp(currentAsset->name, asset->name) == 0) //prevent equal file names
+            return -2;
+        
         currentAsset = currentAsset->next;
+    }
+
+    if (strcmp(currentAsset->name, asset->name) == 0)
+        return -2;
 
     currentAsset->next = asset;
     asset->previous = currentAsset;    

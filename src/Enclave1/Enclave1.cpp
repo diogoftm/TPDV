@@ -60,10 +60,20 @@ int ecallOpenVault(const char *fileName, size_t fileNameSize, const char *psw, s
 
 int ecallInsertAsset(const char *assetName, size_t assetNameSize, const char *assetData, int assetDataSize)
 {
-
+    int err = 0;
     VaultAsset *newAsset = (VaultAsset *)malloc(sizeof(VaultAsset));
     setupVaultAsset(newAsset, (char *)assetName, (unsigned char *)assetData, assetDataSize);
-    pushAsset(_vault, newAsset);
+    err = pushAsset(_vault, newAsset);
+    if(err != 0) {
+        
+        if (err == -1) {
+            enclavePrintf("Unable to insert asset, vault is not in a valid state\n");
+        } else if (err == -2) {
+            enclavePrintf("Unable to insert asset, asset name is repeated\n");
+        }
+        
+        return -1;
+    }
     return 0;
 }
 
