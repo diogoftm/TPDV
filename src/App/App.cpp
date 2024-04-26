@@ -464,45 +464,9 @@ void handleCompareHash()
  * Application
  */
 
-int SGX_CDECL main(int argc, char *argv[])
-{
-  char vaultName[32];
-  char input[100];
-  sgx_status_t ret;
+int handleOpenVaultOption(char* vaultName, char* input) {
+    sgx_status_t ret;
 
-  if (initialize_enclave1() < 0)
-    return 1;
-
-
-  int option;
-
-  while (1)
-  {
-    printf("Do you want to open or create a vault?\n1 - Open\n2 - Create\n3 - Close\n>> ");
-    fflush(stdin);
-    if (fgets(input, sizeof(input), stdin) != NULL)
-    {
-      if (strcmp(input, "\n") == 0)
-      {
-        printf(">> ");
-      }
-      else
-      {
-        char* endptr;
-        errno = 0;
-        option = strtol(input, &endptr, 10);
-
-          if (errno != 0 || input == endptr || option < 1 || option > 3) {
-            printf("Error: invalid option\n");
-            continue;
-          }
-        break;
-      }
-    }
-  }
-
-  if (option == 1)
-  {
     int returnVal = 1;
     char password[128];
 
@@ -519,10 +483,11 @@ int SGX_CDECL main(int argc, char *argv[])
     }
     if (returnVal == 0)
       printf("Info: The vault was successfully opened!\n");
-  }
 
-  else if (option == 2)
-  {
+    return 0;
+}
+
+void handleCreateVaultOption(char* vaultName) {
     int returnVal = 1;
     char password[128];
     char ownerName[64];
@@ -531,21 +496,83 @@ int SGX_CDECL main(int argc, char *argv[])
     readStdin(vaultName, 32);
 
     printf("Owner name: ");
-    readStdin(password, 64);
+    readStdin(ownerName, 64);
 
     printf("Password: ");
     readStdin(password, 128);
 
     handleCreateVault(vaultName, password, ownerName);
+}
+
+void handleStartOptions(int option, char* vaultName, char* input) {
+  switch(option) {
+    case 1:
+    handleOpenVaultOption(vaultName, input);
+    break;
+
+    case 2:
+    handleCreateVaultOption(vaultName);
+    break;
+
+    case 3:
+    
+    break;
+
+    case 4:
+
+    break;
+  }
+  
+}
+
+
+int SGX_CDECL main(int argc, char *argv[])
+{
+  char vaultName[32];
+  char input[100];
+  sgx_status_t ret;
+
+  if (initialize_enclave1() < 0)
+    return 1;
+
+
+  int option;
+
+  while (1)
+  {
+    printf("Choose an option:\n1 - Open\n2 - Create\n3 - Close\n4 - Load remote vault\n>> ");
+    fflush(stdin);
+    if (fgets(input, sizeof(input), stdin) != NULL)
+    {
+      if (strcmp(input, "\n") == 0)
+      {
+        printf(">> ");
+      }
+      else
+      {
+        char* endptr;
+        errno = 0;
+        option = strtol(input, &endptr, 10);
+
+          if (errno != 0 || input == endptr || option < 1 || option > 4) {
+            printf("Error: invalid option\n");
+            continue;
+          }
+        break;
+      }
+    }
   }
 
-  else if (option == 3)
-    handleKillEnclaveAndExit();
+  if(option == 3) {
+        handleKillEnclaveAndExit();
+  } else {
+    handleStartOptions(option, vaultName, input);
+  }
 
   while (1)
   {
     printf("Menu:\n -1 - Exit\n  1 - Add asset from keyboard\n  2 - Add asset from file\n  3 - List assets \
-          \n  4 - Print asset\n  5 - Save asset to file\n  6 - Compare file digest\n  7 - Change password\n");
+          \n  4 - Print asset\n  5 - Save asset to file\n  6 - Compare file digest\n  7 - Change password\n 8 - Allow remote vault clone\n");
 
     while (1)
     {
