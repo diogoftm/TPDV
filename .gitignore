@@ -38,4 +38,8 @@ app
 *_u.*
 .config_HW_PRERELEASE_x64
 
+*.crt
+*.key
+*.pem
+
 vault

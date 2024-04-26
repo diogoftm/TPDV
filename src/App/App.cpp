@@ -34,7 +34,8 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
-
+#include <regex.h>
+#include "AppSocket.h"
 #include "sgx_urts.h"
 #include "App.h"
 #include "Enclave1_u.h"
@@ -487,7 +488,7 @@ int handleOpenVaultOption(char* vaultName, char* input) {
     return 0;
 }
 
-void handleCreateVaultOption(char* vaultName) {
+int handleCreateVaultOption(char* vaultName) {
     int returnVal = 1;
     char password[128];
     char ownerName[64];
@@ -502,26 +503,88 @@ void handleCreateVaultOption(char* vaultName) {
     readStdin(password, 128);
 
     handleCreateVault(vaultName, password, ownerName);
+
+    return 0;
 }
 
-void handleStartOptions(int option, char* vaultName, char* input) {
-  switch(option) {
-    case 1:
-    handleOpenVaultOption(vaultName, input);
-    break;
+int validIpv4Address(char* ip) {
+  regex_t regex;
+  int value;
 
-    case 2:
-    handleCreateVaultOption(vaultName);
-    break;
+  value = regcomp(&regex, 
+         "([0-9]+)[.]([0-9]+)[.]([0-9]+)[.]([0-9]+)", REG_EXTENDED);
 
-    case 3:
-    
-    break;
+  if(value != 0)
+    return -1;
 
-    case 4:
+  int patternMatch = regexec(&regex, ip, 0, NULL, 0);
 
-    break;
+  if(patternMatch == 0)
+    return 0;
+  
+  regfree(&regex);
+
+  return -2;
+}
+
+bool stringToInteger(char* str, int* value) {
+        char* endptr;
+        errno = 0;
+        int _value = strtol(str, &endptr, 10);
+          
+        if (errno != 0 || str == endptr) {
+            return false;
+        }
+
+        *value = _value;
+        return true;
+}
+
+int handleServeVaultCloneOption() {
+  char ip[32];
+  char port[32];
+
+  printf("Server IPv4 address: ");
+  readStdin(ip, 32);
+
+  if(validIpv4Address(ip) != 0) {
+    fprintf(stderr, "Invalid IPv4 address");
+    return -1;
   }
+  
+  printf("Server Port: ");
+  readStdin(port, 32);
+
+  int _port = 0;
+
+  if(stringToInteger(port, &_port) == false ||_port <= 0 || _port > 65535) {
+    fprintf(stderr, "Invalid port received\n");
+    return -1;
+  }
+  
+  if( AppSocket::run_server(_port) != 0) {
+    fprintf(stderr, "An error ocurred while running TLS server\n");
+    return -1;
+  }
+  
+  return 0;
+
+}
+
+int handleLoadRemoteVaultOption() {
+  fprintf(stderr, "Not implemented yet\n");
+  return -1;
+}
+
+int handleStartOptions(int option, char* vaultName, char* input) {
+  switch(option) {
+    case 1: return handleOpenVaultOption(vaultName, input) != 0 ? -1 : 0;
+    case 2: return handleCreateVaultOption(vaultName) != 0 ? -1 : 0;
+    case 3: return 0;
+    case 4: return handleLoadRemoteVaultOption() != 0 ? -1 : -1;
+    default: return 0;
+  }
+
   
 }
 
@@ -551,23 +614,25 @@ int SGX_CDECL main(int argc, char *argv[])
       else
       {
         char* endptr;
-        errno = 0;
-        option = strtol(input, &endptr, 10);
-
-          if (errno != 0 || input == endptr || option < 1 || option > 4) {
-            printf("Error: invalid option\n");
+        
+        int option = 0;
+        if(stringToInteger(input, &option) == false || option < 1 || option > 4) {
+            fprintf(stderr, "Error: invalid option\n");
             continue;
+        }
+        
+        if(option == 3) {
+              handleKillEnclaveAndExit();
+        } else {
+          if(handleStartOptions(option, vaultName, input) == 0)
+            break;
+        }
           }
-        break;
-      }
+        
     }
+
   }
 
-  if(option == 3) {
-        handleKillEnclaveAndExit();
-  } else {
-    handleStartOptions(option, vaultName, input);
-  }
 
   while (1)
   {
@@ -624,6 +689,10 @@ int SGX_CDECL main(int argc, char *argv[])
       break;
     case 7:
       handleChangePassword();
+      break;
+
+    case 8:
+      handleServeVaultCloneOption();
       break;
     default:
       printf("Error: invalid option\n");
