@@ -31,7 +31,7 @@ void enclavePrintf(const char *fmt, ...)
  * Ecall interface
  */
 
-int ecallCreateVault(const char *vaultName, const char *fileName, const char *psw, const char *author)
+int ecallCreateVault(const char *vaultName, const char *psw, const char *author)
 {
     _vault = (Vault *)malloc(sizeof(Vault));
     setupVault(_vault);
@@ -40,21 +40,20 @@ int ecallCreateVault(const char *vaultName, const char *fileName, const char *ps
 
     enclavePrintf("Vault created successfully\n");
 
-    // TODO
-    // char *sealedData;
-    // int siz = sealData(&sealedData, "text\n", sizeof("text\n"));
-    // ocallSaveDataToFile(sealedData, siz, "vault");
-    // uint8_t* plaintext = (uint8_t*) malloc(64);
-    // unsealData(sealedData, plaintext);
-    // unsealDataFromFile("vault", plaintext); // this does not work
-    // enclavePrintf((char*) plaintext);
+    saveVault();
 
     return 0;
 }
 
-int ecallOpenVault(const char *fileName, size_t fileNameSize, const char *psw, size_t pswSize)
+int ecallOpenVault(const char *fileName, const char *psw)
 {
-    enclavePrintf("Hello from create vault\n");
+    _vault = (Vault *)malloc(sizeof(Vault));
+
+    int status = loadVault();
+
+    if (status == 1 || strcmp(_vault->header.password, psw) != 0)
+        return 1;
+    
     return 0;
 }
 
@@ -97,6 +96,8 @@ int ecallListAssets()
         node = node->next;
         i++;
     }
+
+    loadVault();
 
     return 0;
 }
@@ -164,50 +165,55 @@ int ecallChangePassword(const char *newPsw, size_t newPswSize)
 // we need to had the clone feature, but lets forget that for now
 
 /*
- * Internal methods
+ * Sealing methods
  */
 
-int sealData(char **sealedData, char *data, size_t dataSize)
+void saveVault()
 {
-    sgx_status_t res;
-    uint32_t plaintext_len = dataSize;
-    uint8_t *plaintext = (uint8_t *)malloc(plaintext_len);
-    memcpy(plaintext, data, plaintext_len);
+    sgx_status_t ret = SGX_ERROR_UNEXPECTED;
+    sgx_sealed_data_t* sealed_data = NULL;
+    size_t sealed_size = 0;
+    char *input_string = (char*)&_vault->header;
 
-    uint32_t ciph_size = sgx_calc_sealed_data_size(0, plaintext_len);
-    *sealedData = (char *)malloc(ciph_size);
-
-    res = sgx_seal_data(0, NULL, plaintext_len, plaintext, ciph_size, (sgx_sealed_data_t *)*sealedData);
-
-    return ciph_size;
-}
-
-sgx_status_t unsealData(char *sealedData, uint8_t *plaintext)
-{
-    sgx_status_t res;
-    uint32_t size = 6;
-
-    res = sgx_unseal_data((sgx_sealed_data_t *)sealedData, NULL, NULL, plaintext, &size);
-    return res;
-}
-
-void unsealDataFromFile(char *fileName, uint8_t *plaintext)
-{
-    char *sealedData = (char *)malloc(256);
-    if (sealedData == NULL)
-    {
-        enclavePrintf("Error 1\n");
+    sealed_size = sizeof(sgx_sealed_data_t) + sizeof(VaultHeader);
+    sealed_data = (sgx_sealed_data_t*)malloc(sealed_size);
+    if (!sealed_data) {
+        enclavePrintf("error 1\n");
         return;
     }
 
-    ocallLoadSealedData(sealedData, fileName);
-
-    sgx_status_t res = unsealData(sealedData, plaintext);
-
-    if (res != SGX_SUCCESS)
-    {
-        enclavePrintf("Error 2\n");
+    ret = sgx_seal_data(0, NULL, sizeof(VaultHeader), (uint8_t*)input_string, sealed_size, sealed_data);
+    if (ret != SGX_SUCCESS) {
+        free(sealed_data);
+        enclavePrintf("error 2\n");
+        return;
     }
 
-    free(sealedData);
+    ocallSaveSealedData((uint8_t*)sealed_data, sealed_size, "vault.dat");
+
+    free(sealed_data);
+}
+
+int loadVault()
+{
+    sgx_status_t ret = SGX_ERROR_UNEXPECTED;
+    size_t sealed_size = sizeof(sgx_sealed_data_t) + sizeof(VaultHeader);
+    sgx_sealed_data_t* sealed_data = (sgx_sealed_data_t*)malloc(sealed_size);
+    VaultHeader* unsealed_data = (VaultHeader*) malloc(sizeof(VaultHeader));
+
+    ocallLoadSealedData((uint8_t*)sealed_data, &sealed_size, "vault.dat");
+    if (!sealed_data) {
+        return 1;
+    }
+
+    ret = sgx_unseal_data(sealed_data, NULL, NULL, (uint8_t*)unsealed_data, (uint32_t*) &sealed_size);
+    if (ret != SGX_SUCCESS) {
+        enclavePrintf("ups!");
+        return 1;
+    }
+
+    _vault->header = *unsealed_data;
+    _vault->state = VALID;
+
+    return 0;
 }

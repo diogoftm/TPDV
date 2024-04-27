@@ -174,28 +174,31 @@ void ocallSaveDataToFile(const char *data, int siz, const char *fileName)
   fclose(file);
 }
 
-void ocallLoadSealedData(char *sealedData, const char *fileName)
+void ocallLoadSealedData(uint8_t *sealed_data, size_t* sealed_size, const char *fileName)
 {
-  FILE *file = fopen(fileName, "rb");
-
-  if (file == NULL)
-  {
-    fprintf(stderr, "Error opening the file.\n");
+  FILE* file = fopen(fileName, "rb");
+  if (file == NULL) {
+    printf("Error opening file for reading.\n");
     return;
   }
 
   fseek(file, 0, SEEK_END);
-  size_t fileSize = ftell(file);
+  long file_size = ftell(file);
   fseek(file, 0, SEEK_SET);
 
-  size_t bytesRead = fread(sealedData, sizeof(char), fileSize, file);
-  if (bytesRead != fileSize)
-  {
-    fprintf(stderr, "Error reading from the file.\n");
-    fclose(file);
+  fread(sealed_data, 1, file_size, file);
+  fclose(file);
+}
+
+void ocallSaveSealedData(uint8_t* sealed_data, size_t sealed_size, const char *fileName) 
+{
+  FILE* file = fopen(fileName, "wb");
+  if (file == NULL) {
+    printf("Error opening file for writing.\n");
     return;
   }
 
+  fwrite(sealed_data, 1, sealed_size, file);
   fclose(file);
 }
 
@@ -284,8 +287,9 @@ void hexStringToCharArray(const char *hexString, char **output)
 int initialize_enclave1(void)
 {
   sgx_status_t ret;
+  sgx_launch_token_t token = {0};
 
-  if ((ret = sgx_create_enclave(ENCLAVE1_FILENAME, SGX_DEBUG_FLAG, NULL, NULL, &global_eid1, NULL)) != SGX_SUCCESS)
+  if ((ret = sgx_create_enclave(ENCLAVE1_FILENAME, SGX_DEBUG_FLAG, &token, NULL, &global_eid1, NULL)) != SGX_SUCCESS)
   {
     print_error_message(ret, "sgx_create_enclave");
     return -1;
@@ -308,7 +312,7 @@ void handleKillEnclaveAndExit()
 void handleCreateVault(char *vaultName, char *password, char *author)
 {
   int returnVal;
-  ecallCreateVault(global_eid1, &returnVal, vaultName, vaultName, password, author);
+  ecallCreateVault(global_eid1, &returnVal, vaultName, password, author);
 }
 
 void handleChangePassword()
@@ -506,19 +510,21 @@ int SGX_CDECL main(int argc, char *argv[])
     int returnVal = 1;
     char password[128];
 
-    printf("Vault name: ");
+    printf("Vault file name: ");
     readStdin(vaultName, 32);
 
     printf("Password: ");
     readStdin(password, 32);
 
-    if ((ret = ecallOpenVault(global_eid1, &returnVal, vaultName, strlen(vaultName), password, strlen(password))) != SGX_SUCCESS)
+    if ((ret = ecallOpenVault(global_eid1, &returnVal, vaultName, password)) != SGX_SUCCESS)
     {
       print_error_message(ret, "Ups! Something went wrong...");
       return 1;
     }
     if (returnVal == 0)
       printf("Info: The vault was successfully opened!\n");
+    else
+      handleKillEnclaveAndExit();
   }
 
   else if (option == 2)

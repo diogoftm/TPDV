@@ -50,7 +50,6 @@ int copyWithoutNeighborsDeeply(VaultAsset *src, VaultAsset *dst);
 int pushAsset(Vault *vault, VaultAsset *asset);
 int changePassword(Vault *vault, char *newPswd);
 int fetchAsset(Vault *vault, char name[32], VaultAsset *asset);
-int loadVault(Vault *vault, const char *data, char *pw);
 int destroyVault(Vault *vault);
 
 

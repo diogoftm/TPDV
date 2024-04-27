@@ -134,16 +134,6 @@ int fetchAsset(Vault *vault, char name[32], VaultAsset *asset)
     return -2;
 }
 
-int loadVault(Vault *vault, const char *data, char *pw)
-{
-    // TODO: if hash fails set corrupted State
-    // ...
-
-    vault->state = VALID;
-
-    return 0;
-}
-
 int destroyVault(Vault *vault)
 {
     if (vault->state == NOT_YET_PARSED)
