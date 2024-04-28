@@ -104,9 +104,9 @@ int pushAsset(Vault *vault, VaultAsset *asset)
         return -2;
 
     currentAsset->next = asset;
-    asset->previous = currentAsset;   
+    asset->previous = currentAsset;
 
-    vault->header.numberOfFiles++; 
+    vault->header.numberOfFiles += 1;
 
     return 0;
 }

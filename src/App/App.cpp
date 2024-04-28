@@ -174,20 +174,22 @@ void ocallSaveDataToFile(const char *data, int siz, const char *fileName)
   fclose(file);
 }
 
-void ocallLoadSealedData(uint8_t *sealed_data, size_t* sealed_size, const char *fileName)
+int ocallLoadSealedData(uint8_t *sealed_data, const char *fileName)
 {
   FILE* file = fopen(fileName, "rb");
   if (file == NULL) {
     printf("Error opening file for reading.\n");
-    return;
+    return 0;
   }
 
   fseek(file, 0, SEEK_END);
-  long file_size = ftell(file);
+  int file_size = ftell(file);
   fseek(file, 0, SEEK_SET);
 
   fread(sealed_data, 1, file_size, file);
   fclose(file);
+
+  return file_size;
 }
 
 void ocallSaveSealedData(uint8_t* sealed_data, size_t sealed_size, const char *fileName) 
@@ -510,7 +512,7 @@ int SGX_CDECL main(int argc, char *argv[])
     int returnVal = 1;
     char password[128];
 
-    printf("Vault file name: ");
+    printf("Vault name (same as the file name): ");
     readStdin(vaultName, 32);
 
     printf("Password: ");

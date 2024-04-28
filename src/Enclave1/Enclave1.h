@@ -39,7 +39,7 @@ extern "C" {
 #endif
 
 static void saveVault();
-static int loadVault();
+static int loadVault(const char* fileName);
 
 #if defined(__cplusplus)
 }
