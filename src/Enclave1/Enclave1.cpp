@@ -58,7 +58,7 @@ int ecallOpenVault(const char *fileName, const char *psw)
     return 0;
 }
 
-int ecallInsertAsset(const char *assetName, size_t assetNameSize, const char *assetData, int assetDataSize)
+int ecallInsertAsset(const char *assetName, size_t assetNameSize, const uint8_t *assetData, int assetDataSize)
 {
     int err = 0;
     VaultAsset *newAsset = (VaultAsset *)malloc(sizeof(VaultAsset));

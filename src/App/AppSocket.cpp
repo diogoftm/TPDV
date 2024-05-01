@@ -12,8 +12,9 @@ namespace BaseMessageLayer {
         uint32_t packet_length = 4 + sizeof(uint8_t) * len;
         uint8_t* packet = (uint8_t*)malloc(packet_length);
 
+
         memcpy(packet + 4, message, len);
-        *packet = len;
+        *(uint32_t*)packet = len;
 
         int bytesWritten = SSL_write(ssl, packet, packet_length);
 
@@ -25,9 +26,9 @@ namespace BaseMessageLayer {
     }
 
     int receive_message(SSL* ssl, uint8_t** dst_message_buffer, int& len) {
-        uint8_t mlenbuff[4];
+        uint32_t mlenbuff;
         uint32_t bytes_read;
-        bytes_read = SSL_read(ssl, mlenbuff, 4);
+        bytes_read = SSL_read(ssl, &mlenbuff, 4);
 
         if(bytes_read >= 1 && bytes_read <= 3) {
             fprintf(stderr, "Expected 4 bytes\n");
@@ -37,9 +38,10 @@ namespace BaseMessageLayer {
         if(bytes_read <= 0) {
             fprintf(stderr, "ssl connection error := %d\n", SSL_get_error(ssl, bytes_read));
             return -1;
+            
         }
 
-        uint32_t packet_length = *mlenbuff;
+        uint32_t packet_length = mlenbuff;
 
         if(packet_length > 1024 * 1024) {
             fprintf(stderr, "Packet length is too big\n");
@@ -52,10 +54,12 @@ namespace BaseMessageLayer {
 
         if(bytes_read >= 1 && bytes_read < packet_length) { // I think this check is unnecessary
             fprintf(stderr, "Expected %d bytes\n", packet_length);
+            free(leadingBytesBuffer);
             return -1;
         }
         if(bytes_read <= 0) {
             fprintf(stderr, "ssl connection error := %d\n", SSL_get_error(ssl, bytes_read));
+            free(leadingBytesBuffer);
             return -1;
         }
 

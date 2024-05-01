@@ -29,6 +29,7 @@
  *
  */
 
+#include <string.h>
 #include <time.h>
 #include <stdio.h>
 #include <string.h>
@@ -40,6 +41,7 @@
 #include "App.h"
 #include "Enclave1_u.h"
 #include <functional>
+#include <map>
 
 #define MAX_DATA_SIZE 256
 
@@ -180,7 +182,7 @@ int ocallLoadSealedData(uint8_t *sealed_data, const char *fileName)
 {
   FILE* file = fopen(fileName, "rb");
   if (file == NULL) {
-    printf("Error opening file for reading.\n");
+    fprintf(stderr, "Error opening file for reading.\n");
     return 0;
   }
 
@@ -201,7 +203,7 @@ void ocallSaveSealedData(uint8_t* sealed_data, size_t sealed_size, const char *f
 {
   FILE* file = fopen(fileName, "wb");
   if (file == NULL) {
-    printf("Error opening file for writing.\n");
+    fprintf(stderr, "Error opening file for writing.\n");
     return;
   }
 
@@ -232,7 +234,7 @@ int readStdin(char *value, int maxSize)
   return 0;
 }
 
-char *readFile(char *filename)
+uint8_t* readFile(char *filename, long& len)
 {
   FILE *file = fopen(filename, "r");
   if (file == NULL)
@@ -245,7 +247,7 @@ char *readFile(char *filename)
   long file_size = ftell(file);
   fseek(file, 0, SEEK_SET);
 
-  char *buffer = (char *)malloc(file_size + 1);
+  uint8_t *buffer = (uint8_t*)malloc(file_size + 1);
   if (buffer == NULL)
   {
     fprintf(stderr, "Memory allocation failed.\n");
@@ -262,11 +264,19 @@ char *readFile(char *filename)
     return NULL;
   }
 
-  buffer[file_size] = '\0';
-
   fclose(file);
+
+  len = file_size;
   return buffer;
 }
+
+bool fileExists(char* fname) {
+  if(access(fname, F_OK) == 0)
+    return true;
+
+  return false;
+}
+
 
 void hexStringToCharArray(const char *hexString, char **output)
 {
@@ -372,7 +382,7 @@ void handleAddAssetFromKeyboard()
   printf("Asset content: ");
   readStdin(content, 256);
 
-  ecallInsertAsset(global_eid1, &ret_val, assetName, strlen(assetName) + 1, content, strlen(content));
+  ecallInsertAsset(global_eid1, &ret_val, assetName, strlen(assetName) + 1, (uint8_t*)content, strlen(content));
 }
 
 void handleAddAssetFromFile()
@@ -381,11 +391,12 @@ void handleAddAssetFromFile()
   int ret_val;
   char fileName[32];
   char assetName[32];
-  char *fileContent;
+  const uint8_t *fileContent;
 
   printf("File name: ");
   readStdin(fileName, 32);
-  fileContent = readFile(fileName);
+  long flen;
+  fileContent = readFile(fileName, flen);
 
   if (fileContent == NULL)
   {
@@ -402,7 +413,7 @@ void handleAddAssetFromFile()
     return;
   }
 
-  if ((ret = ecallInsertAsset(global_eid1, &ret_val, assetName, strlen(assetName) + 1, fileContent, strlen(fileContent) + 1)) != SGX_SUCCESS)
+  if ((ret = ecallInsertAsset(global_eid1, &ret_val, assetName, strlen(assetName) + 1, fileContent, flen)) != SGX_SUCCESS)
   {
     print_error_message(ret, "ecallInsertAsset");
     handleKillEnclaveAndExit();
@@ -528,37 +539,157 @@ bool stringToInteger(char* str, int* value) {
         return true;
 }
 
+
+
+enum class MESSAGE_TYPES {
+    OK,
+    REQUEST_CLONE,
+    SEND_VAULT_NAME,
+    INVALID_VAULT,
+    CLOSE_SESSION,
+    ACK_CLOSE_SESSION
+  };
+
+static std::map<MESSAGE_TYPES, const char*> MESSAGE_MAP = {
+    {MESSAGE_TYPES::OK, "OK"},
+    {MESSAGE_TYPES::REQUEST_CLONE, "REQUEST_CLONE"},
+    {MESSAGE_TYPES::SEND_VAULT_NAME, "SEND_VAULT_NAME"},
+    {MESSAGE_TYPES::INVALID_VAULT, "INVALID_VAULT"},
+    {MESSAGE_TYPES::CLOSE_SESSION, "CLOSE_SESSION"},
+    {MESSAGE_TYPES::ACK_CLOSE_SESSION, "ACK_CLOSE_SESSION"}
+};
+
 int serveClientCallback(SSL* ssl) {
 
   uint8_t* message;
   int mlen;
   BaseMessageLayer::receive_message(ssl, &message, mlen);
 
-  if(strcmp((char*)message, "REQUEST_CLONE") != 0) {
+  if(strcmp((char*)message, MESSAGE_MAP[MESSAGE_TYPES::REQUEST_CLONE]) != 0) {
     fprintf(stdout, "Unexpected operation from client\n");
     fprintf(stdout, "Message received: %s\n", (char*)message);
-    SSL_shutdown(ssl);
+    free(message);
     return 0;
   }
+
+  free(message);
+
+  printf("[0/7] Received request clone from client\n");
+  printf("[1/7] Asking client for vault name ...\n");
+  BaseMessageLayer::send_message(ssl, (uint8_t*)MESSAGE_MAP[MESSAGE_TYPES::SEND_VAULT_NAME], strlen(MESSAGE_MAP[MESSAGE_TYPES::SEND_VAULT_NAME]) + 1);
+  BaseMessageLayer::receive_message(ssl, &message, mlen);
+
+  printf("[2/7] Client asked for vault named '%s'\n", (char*)(message));
+  printf("[3/7] Reading '%s' vault sealed data...\n", (char*)message);
+
+  long flen;
+  uint8_t* vault_data = readFile((char*)message, flen);
+
+  if(vault_data == NULL) {
+    printf("[4/7] Sending vault does not exist message to client\n");
+    BaseMessageLayer::send_message(ssl, (uint8_t*)MESSAGE_MAP[MESSAGE_TYPES::INVALID_VAULT], strlen(MESSAGE_MAP[MESSAGE_TYPES::INVALID_VAULT]) + 1);
+    free(message);
+    return 0;
+  } else {
+    BaseMessageLayer::send_message(ssl, (uint8_t*)MESSAGE_MAP[MESSAGE_TYPES::OK], strlen(MESSAGE_MAP[MESSAGE_TYPES::OK]) + 1);
+  }
+
+  free(message);
+
+  printf("[5/7] Sending vault data (%ld bytes) ...\n", flen);
+  BaseMessageLayer::send_message(ssl, vault_data, flen);
+
+  BaseMessageLayer::receive_message(ssl, &message, mlen);
+
+  if(strcmp((char*)message, MESSAGE_MAP[MESSAGE_TYPES::OK]) != 0) {
+    fprintf(stdout, "[6/7] Unexpected operation from client\n");
+    fprintf(stdout, "[6/7] Message received: %s\n", (char*)message);
+    free(message);
+    return 0;
+  }
+  printf("[6/7] Received OK response from client\n");
+
+  free(message);
+
+  printf("[7/7] Sending close session message\n");
+
+  BaseMessageLayer::send_message(ssl, (uint8_t*)MESSAGE_MAP[MESSAGE_TYPES::CLOSE_SESSION], strlen(MESSAGE_MAP[MESSAGE_TYPES::CLOSE_SESSION]) + 1);
+
+  //(ack is being awaited to avoid closing session without client properly processed last message)
+  if(BaseMessageLayer::receive_message(ssl, &message, mlen) != 0) { //it doesn't matter if it fails at this point
   
-  printf("Received REQUEST_CLONE from client\n");
+    return 0;
+  }
 
-  // Obtain sealed data
-  
-
-
+  free(message);
   return 0;
 }
 
+
+
 int clientConnectionWithServerCallback(SSL* ssl) {
-  const char* requestMessage = "REQUEST_CLONE";
+  int errc;
+  printf("[0/6] Sending REQUEST_CLONE to server\n");
+  BaseMessageLayer::send_message(ssl, (uint8_t*)MESSAGE_MAP[MESSAGE_TYPES::REQUEST_CLONE], strlen(MESSAGE_MAP[MESSAGE_TYPES::REQUEST_CLONE]) + 1);
 
+  uint8_t* response;
+  int response_length;
+  BaseMessageLayer::receive_message(ssl, &response, response_length);
 
-  printf("Sending REQUEST_CLONE to server\n");
-  BaseMessageLayer::send_message(ssl, (uint8_t*)requestMessage, strlen(requestMessage) + 1);
+  if(strcmp((char*)response, MESSAGE_MAP[MESSAGE_TYPES::SEND_VAULT_NAME]) != 0) {
+    fprintf(stdout, "[1/6] Expected SEND_VAULT_NAME response from server\n");
+    fprintf(stdout, "[1/6] Message received: %s\n", (char*)response);
+    free(response);
+    return 0;
+  }
 
+  free(response);
 
+  char vaultName[64];
+  printf("[2/6] Server asked for vault name: ");
+  readStdin(vaultName, 32);
+  BaseMessageLayer::send_message(ssl, (uint8_t*)vaultName, strlen(vaultName) + 1);
 
+  BaseMessageLayer::receive_message(ssl, &response, response_length);
+
+  if(strcmp((char*)response, MESSAGE_MAP[MESSAGE_TYPES::INVALID_VAULT]) == 0) {
+    fprintf(stderr, "[3/6] Server responded with invalid vault response, check if vault is exists.\n");
+    free(response);
+    return 0;
+  }
+
+  free(response);
+  
+  if(errc = BaseMessageLayer::receive_message(ssl, &response, response_length) != 0) {
+    fprintf(stderr, "[4/6] SSL error while receiving vault data.\n");
+    return 0;
+  }
+  printf("[4/6] Received vault sealed data (%d bytes) from remote server...\n ", response_length);
+  
+  const char* clone_str = "_cloned";
+  char* dstFileName = (char*)malloc(sizeof(char) * strlen(vaultName) + strlen(clone_str) + 1);
+  memcpy(dstFileName, vaultName, strlen(vaultName));
+  memcpy(dstFileName + strlen(vaultName), clone_str, strlen(clone_str) + 1);
+  ocallSaveDataToFile((char*)response, response_length, dstFileName);
+
+  printf("[4/6] Clone data saved in %s\n", dstFileName);
+
+  free(dstFileName);
+  free(response);
+  
+  BaseMessageLayer::send_message(ssl, (uint8_t*)MESSAGE_MAP[MESSAGE_TYPES::OK], strlen(MESSAGE_MAP[MESSAGE_TYPES::OK]) + 1);
+  printf("[5/6] Sending OK message\n");
+  //close session is expected here
+  BaseMessageLayer::receive_message(ssl, &response, response_length);
+
+  if(strcmp((char*)response, MESSAGE_MAP[MESSAGE_TYPES::CLOSE_SESSION]) != 0) {
+    fprintf(stderr, "[6/6] Expected close session message from server.\n");
+    free(response);
+    return 0;
+  }
+
+  BaseMessageLayer::send_message(ssl, (uint8_t*)MESSAGE_MAP[MESSAGE_TYPES::ACK_CLOSE_SESSION], strlen(MESSAGE_MAP[MESSAGE_TYPES::ACK_CLOSE_SESSION]) + 1);
+  printf("[6/6] Clone finished\n");
   return 0;
   
 }
