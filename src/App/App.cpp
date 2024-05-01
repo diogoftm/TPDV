@@ -472,64 +472,6 @@ void handleCompareHash()
  * Application
  */
 
-int SGX_CDECL main(int argc, char *argv[])
-{
-  char vaultName[32];
-  char input[100];
-  sgx_status_t ret;
-
-  if (initialize_enclave1() < 0)
-    return 1;
-
-
-  int option;
-
-  while (1)
-  {
-    printf("Do you want to open or create a vault?\n1 - Open\n2 - Create\n3 - Close\n>> ");
-    fflush(stdin);
-    if (fgets(input, sizeof(input), stdin) != NULL)
-    {
-      if (strcmp(input, "\n") == 0)
-      {
-        printf(">> ");
-      }
-      else
-      {
-        char* endptr;
-        errno = 0;
-        option = strtol(input, &endptr, 10);
-
-          if (errno != 0 || input == endptr || option < 1 || option > 3) {
-            printf("Error: invalid option\n");
-            continue;
-          }
-        break;
-      }
-    }
-  }
-
-  if (option == 1)
-  {
-    int returnVal = 1;
-    char password[128];
-
-    printf("Vault name: ");
-    readStdin(vaultName, 32);
-
-    printf("Password: ");
-    readStdin(password, 32);
-
-    if ((ret = ecallOpenVault(global_eid1, &returnVal, vaultName, strlen(vaultName), password, strlen(password))) != SGX_SUCCESS)
-    {
-      print_error_message(ret, "Ups! Something went wrong...");
-      return 1;
-    }
-    if (returnVal == 0)
-      printf("Info: The vault was successfully opened!\n");
-
-    return 0;
-}
 
 int handleCreateVaultOption(char* vaultName) {
     int returnVal = 1;
@@ -690,6 +632,29 @@ int handleLoadRemoteVaultOption() {
 
   return 0;
   
+}
+
+int handleOpenVaultOption(char* vaultName, char* input) {
+    sgx_status_t ret;
+
+    int returnVal = 1;
+    char password[128];
+
+    printf("Vault name: ");
+    readStdin(vaultName, 32);
+
+    printf("Password: ");
+    readStdin(password, 32);
+
+    if ((ret = ecallOpenVault(global_eid1, &returnVal, vaultName, password)) != SGX_SUCCESS)
+    {
+      print_error_message(ret, "Ups! Something went wrong...");
+      return 1;
+    }
+    if (returnVal == 0)
+      printf("Info: The vault was successfully opened!\n");
+
+    return 0;
 }
 
 int handleStartOptions(int option, char* vaultName, char* input) {
