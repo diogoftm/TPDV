@@ -188,10 +188,13 @@ int ocallLoadSealedData(uint8_t *sealed_data, const char *fileName)
   int file_size = ftell(file);
   fseek(file, 0, SEEK_SET);
 
-  fread(sealed_data, 1, file_size, file);
-  fclose(file);
+  if(fread(sealed_data, 1, file_size, file) > 0) {
+    fclose(file);
+    return file_size;
+  }
 
-  return file_size;
+  fclose(file);
+  return -1;
 }
 
 void ocallSaveSealedData(uint8_t* sealed_data, size_t sealed_size, const char *fileName) 
