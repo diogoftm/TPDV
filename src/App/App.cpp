@@ -176,28 +176,33 @@ void ocallSaveDataToFile(const char *data, int siz, const char *fileName)
   fclose(file);
 }
 
-void ocallLoadSealedData(char *sealedData, const char *fileName)
+int ocallLoadSealedData(uint8_t *sealed_data, const char *fileName)
 {
-  FILE *file = fopen(fileName, "rb");
-
-  if (file == NULL)
-  {
-    fprintf(stderr, "Error opening the file.\n");
-    return;
+  FILE* file = fopen(fileName, "rb");
+  if (file == NULL) {
+    printf("Error opening file for reading.\n");
+    return 0;
   }
 
   fseek(file, 0, SEEK_END);
-  size_t fileSize = ftell(file);
+  int file_size = ftell(file);
   fseek(file, 0, SEEK_SET);
 
-  size_t bytesRead = fread(sealedData, sizeof(char), fileSize, file);
-  if (bytesRead != fileSize)
-  {
-    fprintf(stderr, "Error reading from the file.\n");
-    fclose(file);
+  fread(sealed_data, 1, file_size, file);
+  fclose(file);
+
+  return file_size;
+}
+
+void ocallSaveSealedData(uint8_t* sealed_data, size_t sealed_size, const char *fileName) 
+{
+  FILE* file = fopen(fileName, "wb");
+  if (file == NULL) {
+    printf("Error opening file for writing.\n");
     return;
   }
 
+  fwrite(sealed_data, 1, sealed_size, file);
   fclose(file);
 }
 
@@ -286,8 +291,9 @@ void hexStringToCharArray(const char *hexString, char **output)
 int initialize_enclave1(void)
 {
   sgx_status_t ret;
+  sgx_launch_token_t token = {0};
 
-  if ((ret = sgx_create_enclave(ENCLAVE1_FILENAME, SGX_DEBUG_FLAG, NULL, NULL, &global_eid1, NULL)) != SGX_SUCCESS)
+  if ((ret = sgx_create_enclave(ENCLAVE1_FILENAME, SGX_DEBUG_FLAG, &token, NULL, &global_eid1, NULL)) != SGX_SUCCESS)
   {
     print_error_message(ret, "sgx_create_enclave");
     return -1;
@@ -310,7 +316,7 @@ void handleKillEnclaveAndExit()
 void handleCreateVault(char *vaultName, char *password, char *author)
 {
   int returnVal;
-  ecallCreateVault(global_eid1, &returnVal, vaultName, vaultName, password, author);
+  ecallCreateVault(global_eid1, &returnVal, vaultName, password, author);
 }
 
 void handleChangePassword()
@@ -466,9 +472,45 @@ void handleCompareHash()
  * Application
  */
 
-int handleOpenVaultOption(char* vaultName, char* input) {
-    sgx_status_t ret;
+int SGX_CDECL main(int argc, char *argv[])
+{
+  char vaultName[32];
+  char input[100];
+  sgx_status_t ret;
 
+  if (initialize_enclave1() < 0)
+    return 1;
+
+
+  int option;
+
+  while (1)
+  {
+    printf("Do you want to open or create a vault?\n1 - Open\n2 - Create\n3 - Close\n>> ");
+    fflush(stdin);
+    if (fgets(input, sizeof(input), stdin) != NULL)
+    {
+      if (strcmp(input, "\n") == 0)
+      {
+        printf(">> ");
+      }
+      else
+      {
+        char* endptr;
+        errno = 0;
+        option = strtol(input, &endptr, 10);
+
+          if (errno != 0 || input == endptr || option < 1 || option > 3) {
+            printf("Error: invalid option\n");
+            continue;
+          }
+        break;
+      }
+    }
+  }
+
+  if (option == 1)
+  {
     int returnVal = 1;
     char password[128];
 

@@ -104,7 +104,9 @@ int pushAsset(Vault *vault, VaultAsset *asset)
         return -2;
 
     currentAsset->next = asset;
-    asset->previous = currentAsset;    
+    asset->previous = currentAsset;
+
+    vault->header.numberOfFiles += 1;
 
     return 0;
 }
@@ -132,16 +134,6 @@ int fetchAsset(Vault *vault, char name[32], VaultAsset *asset)
     }
 
     return -2;
-}
-
-int loadVault(Vault *vault, const char *data, char *pw)
-{
-    // TODO: if hash fails set corrupted State
-    // ...
-
-    vault->state = VALID;
-
-    return 0;
 }
 
 int destroyVault(Vault *vault)

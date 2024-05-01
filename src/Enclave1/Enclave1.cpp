@@ -31,7 +31,7 @@ void enclavePrintf(const char *fmt, ...)
  * Ecall interface
  */
 
-int ecallCreateVault(const char *vaultName, const char *fileName, const char *psw, const char *author)
+int ecallCreateVault(const char *vaultName, const char *psw, const char *author)
 {
     _vault = (Vault *)malloc(sizeof(Vault));
     setupVault(_vault);
@@ -40,21 +40,21 @@ int ecallCreateVault(const char *vaultName, const char *fileName, const char *ps
 
     enclavePrintf("Vault created successfully\n");
 
-    // TODO
-    // char *sealedData;
-    // int siz = sealData(&sealedData, "text\n", sizeof("text\n"));
-    // ocallSaveDataToFile(sealedData, siz, "vault");
-    // uint8_t* plaintext = (uint8_t*) malloc(64);
-    // unsealData(sealedData, plaintext);
-    // unsealDataFromFile("vault", plaintext); // this does not work
-    // enclavePrintf((char*) plaintext);
+    saveVault();
 
     return 0;
 }
 
-int ecallOpenVault(const char *fileName, size_t fileNameSize, const char *psw, size_t pswSize)
+int ecallOpenVault(const char *fileName, const char *psw)
 {
-    enclavePrintf("Hello from create vault\n");
+    _vault = (Vault *)malloc(sizeof(Vault));
+    setupVault(_vault);
+
+    int status = loadVault(fileName);
+
+    if (status == 1 || strcmp(_vault->header.password, psw) != 0)
+        return 1;
+    
     return 0;
 }
 
@@ -74,6 +74,9 @@ int ecallInsertAsset(const char *assetName, size_t assetNameSize, const char *as
         
         return -1;
     }
+
+    saveVault();
+
     return 0;
 }
 
@@ -158,56 +161,105 @@ int ecallChangePassword(const char *newPsw, size_t newPswSize)
     changePassword(_vault, (char *)newPsw);
     enclavePrintf("Sucessfully changed vault password\n");
 
-    return -1;
+    saveVault();
+
+    return 0;
 }
+
 
 // we need to had the clone feature, but lets forget that for now
 
 /*
- * Internal methods
+ * Sealing methods
  */
 
-int sealData(char **sealedData, char *data, size_t dataSize)
-{
-    sgx_status_t res;
-    uint32_t plaintext_len = dataSize;
-    uint8_t *plaintext = (uint8_t *)malloc(plaintext_len);
-    memcpy(plaintext, data, plaintext_len);
+void saveVault() {
+    int totalAssetsSize = 0;
+    VaultAsset *node = _vault->asset;
+    while (node != NULL) {
+        totalAssetsSize += 32 + sizeof(node->name) + sizeof(node->size) + node->size;
+        node = node->next;
+    }
 
-    uint32_t ciph_size = sgx_calc_sealed_data_size(0, plaintext_len);
-    *sealedData = (char *)malloc(ciph_size);
-
-    res = sgx_seal_data(0, NULL, plaintext_len, plaintext, ciph_size, (sgx_sealed_data_t *)*sealedData);
-
-    return ciph_size;
-}
-
-sgx_status_t unsealData(char *sealedData, uint8_t *plaintext)
-{
-    sgx_status_t res;
-    uint32_t size = 6;
-
-    res = sgx_unseal_data((sgx_sealed_data_t *)sealedData, NULL, NULL, plaintext, &size);
-    return res;
-}
-
-void unsealDataFromFile(char *fileName, uint8_t *plaintext)
-{
-    char *sealedData = (char *)malloc(256);
-    if (sealedData == NULL)
-    {
-        enclavePrintf("Error 1\n");
+    char *data = (char*) malloc(sizeof(VaultHeader) + totalAssetsSize);
+    if (data == NULL) {
+        enclavePrintf("Error: Memory allocation failed.\n");
         return;
     }
 
-    ocallLoadSealedData(sealedData, fileName);
+    memcpy(data, (char*)&_vault->header, sizeof(VaultHeader));
 
-    sgx_status_t res = unsealData(sealedData, plaintext);
+    size_t offset = sizeof(VaultHeader);
+    node = _vault->asset;
+    while (node != NULL) {
+        size_t assetSize = 32 + sizeof(node->name) + sizeof(node->size) + node->size;
 
-    if (res != SGX_SUCCESS)
-    {
-        enclavePrintf("Error 2\n");
+        memcpy(data + offset, node->hash, 32);
+        memcpy(data + offset + 32, node->name, sizeof(node->name));
+        memcpy(data + offset + 32 + sizeof(node->name), &node->size, sizeof(node->size));
+        memcpy(data + offset + 32 + sizeof(node->name) + sizeof(node->size), node->content, node->size);
+
+        offset += assetSize;
+        node = node->next;
     }
 
-    free(sealedData);
+    sgx_status_t ret;
+    sgx_sealed_data_t* sealed_data = NULL;
+    size_t sealed_size = sizeof(sgx_sealed_data_t) + sizeof(VaultHeader) + totalAssetsSize;
+    sealed_data = (sgx_sealed_data_t*)malloc(sealed_size);
+    if (sealed_data == NULL) {
+        enclavePrintf("Error: Memory allocation failed.\n");
+        free(data);
+        return;
+    }
+
+    ret = sgx_seal_data(0, NULL, sizeof(VaultHeader) + totalAssetsSize, (uint8_t*)data, sealed_size, sealed_data);
+    if (ret != SGX_SUCCESS) {
+        enclavePrintf("Error: Sealing failed (%#x).\n", ret);
+        free(data);
+        free(sealed_data);
+        return;
+    }
+
+    ocallSaveSealedData((uint8_t*)sealed_data, sealed_size, _vault->header.name);
+
+    free(data);
+    free(sealed_data);
+}
+
+
+int loadVault(const char* fileName)
+{
+    sgx_status_t ret = SGX_ERROR_UNEXPECTED;
+    int sealed_size;
+
+    // This sizes can be considered de maximum size of the vault
+    sgx_sealed_data_t* sealed_data = (sgx_sealed_data_t*) malloc(1024*16);
+    char* unsealed_data = (char*) malloc(1024*16);
+
+    ocallLoadSealedData(&sealed_size, (uint8_t*)sealed_data, fileName);
+    if (!sealed_data) {
+        return 1;
+    }
+
+    ret = sgx_unseal_data(sealed_data, NULL, NULL, (uint8_t*)unsealed_data, (uint32_t*) &sealed_size);
+    if (ret != SGX_SUCCESS) {
+        enclavePrintf("Error: Unsealing failed\n");
+        return 1;
+    }
+
+    setupVaultHeader(&_vault->header, &unsealed_data[32], &unsealed_data[64], &unsealed_data[100]);
+
+
+    enclavePrintf("Loading assets...\n");
+    int i = sizeof(VaultHeader);
+    while (i < sealed_size)
+    {
+        VaultAsset *newAsset = (VaultAsset *)malloc(sizeof(VaultAsset));
+        setupVaultAsset(newAsset, &unsealed_data[i+32], (unsigned char*) &unsealed_data[i+68], unsealed_data[i+64]);
+        pushAsset(_vault, newAsset);
+        i += 68 + newAsset->size;
+    }
+
+    return 0;
 }
