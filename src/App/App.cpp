@@ -39,6 +39,7 @@
 #include "sgx_urts.h"
 #include "App.h"
 #include "Enclave1_u.h"
+#include <functional>
 
 #define MAX_DATA_SIZE 256
 
@@ -540,17 +541,44 @@ bool stringToInteger(char* str, int* value) {
         return true;
 }
 
-int handleServeVaultCloneOption() {
-  char ip[32];
-  char port[32];
+int serveClientCallback(SSL* ssl) {
 
-  printf("Server IPv4 address: ");
-  readStdin(ip, 32);
+  uint8_t* message;
+  int mlen;
+  BaseMessageLayer::receive_message(ssl, &message, mlen);
 
-  if(validIpv4Address(ip) != 0) {
-    fprintf(stderr, "Invalid IPv4 address");
-    return -1;
+  if(strcmp((char*)message, "REQUEST_CLONE") != 0) {
+    fprintf(stdout, "Unexpected operation from client\n");
+    fprintf(stdout, "Message received: %s\n", (char*)message);
+    SSL_shutdown(ssl);
+    return 0;
   }
+  
+  printf("Received REQUEST_CLONE from client\n");
+
+  // Obtain sealed data
+  
+
+
+  return 0;
+}
+
+int clientConnectionWithServerCallback(SSL* ssl) {
+  const char* requestMessage = "REQUEST_CLONE";
+
+
+  printf("Sending REQUEST_CLONE to server\n");
+  BaseMessageLayer::send_message(ssl, (uint8_t*)requestMessage, strlen(requestMessage) + 1);
+
+
+
+  return 0;
+  
+}
+
+int handleServeVaultCloneOption() {
+
+  char port[32];
   
   printf("Server Port: ");
   readStdin(port, 32);
@@ -561,8 +589,15 @@ int handleServeVaultCloneOption() {
     fprintf(stderr, "Invalid port received\n");
     return -1;
   }
+
+  TlsServer::TlsServerConfig config;
+  config.rootCA = "./certs/root.crt";
+  config.myCertificate = "./certs/client_1.crt";
+  config.myPrivateKey = "./certs/client_1.key";
   
-  if( AppSocket::run_server(_port) != 0) {
+  std::function<int(SSL*)> callback = std::function<int(SSL*)>(serveClientCallback);
+
+  if( TlsServer::run_server(_port, config, callback) != 0) {
     fprintf(stderr, "An error ocurred while running TLS server\n");
     return -1;
   }
@@ -572,8 +607,47 @@ int handleServeVaultCloneOption() {
 }
 
 int handleLoadRemoteVaultOption() {
-  fprintf(stderr, "Not implemented yet\n");
-  return -1;
+
+  char ip[64];
+  char port[32];
+  int status;
+
+  printf("Server IP: ");
+  readStdin(ip, sizeof(ip));
+
+  status = validIpv4Address(ip);
+
+  if(status != 0) {
+    fprintf(stderr, "Invalid Ipv4 address\n");
+    return -1;
+  }
+
+  printf("Server Port: ");
+  readStdin(port, sizeof(port));
+
+  int _port = 0;
+  bool cvtStatus = stringToInteger(port, &_port);
+
+  if(cvtStatus == false) {
+    fprintf(stderr, "Invalid port\n");
+    return -1;
+  }
+
+
+  TlsClient::TlsClientConfig config;
+  config.rootCA = "./certs/root.crt";
+  config.serverIP = ip;
+  config.serverPort = _port;
+
+  std::function<int(SSL*)> callback = std::function<int(SSL*)>(clientConnectionWithServerCallback);
+
+  if (TlsClient::connect(config, callback) != 0) {
+    fprintf(stderr, "Error while connecting with server\n");
+    return -1;
+  }
+
+  return 0;
+  
 }
 
 int handleStartOptions(int option, char* vaultName, char* input) {
@@ -637,7 +711,7 @@ int SGX_CDECL main(int argc, char *argv[])
   while (1)
   {
     printf("Menu:\n -1 - Exit\n  1 - Add asset from keyboard\n  2 - Add asset from file\n  3 - List assets \
-          \n  4 - Print asset\n  5 - Save asset to file\n  6 - Compare file digest\n  7 - Change password\n 8 - Allow remote vault clone\n");
+          \n  4 - Print asset\n  5 - Save asset to file\n  6 - Compare file digest\n  7 - Change password\n  8 - Allow remote vault clone\n");
 
     while (1)
     {
