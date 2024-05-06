@@ -43,6 +43,7 @@ struct Vault
 };
 
 VaultState getState(Vault* vault);
+void generateNonce(unsigned char *nonce); // TESTING
 void setupVault(Vault *vault);
 int setupVaultAsset(VaultAsset *vaultAsset, char *name, unsigned char* content, size_t contentSize);
 void setupVaultHeader(VaultHeader *vaultHeader, char *name, char *password, char *author);
