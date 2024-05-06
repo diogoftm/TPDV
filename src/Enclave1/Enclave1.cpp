@@ -4,6 +4,7 @@
 #include <stdarg.h>
 #include <stdio.h>
 
+#include "sgx_tcrypto.h"
 #include "sgx_trts.h"
 #include "sgx_tseal.h"
 #include "Enclave1.h"
@@ -54,7 +55,7 @@ int ecallOpenVault(const char *fileName, const char *psw)
 
     if (status == 1 || strcmp(_vault->header.password, psw) != 0)
         return 1;
-    
+
     return 0;
 }
 
@@ -62,16 +63,20 @@ int ecallInsertAsset(const char *assetName, size_t assetNameSize, const uint8_t 
 {
     int err = 0;
     VaultAsset *newAsset = (VaultAsset *)malloc(sizeof(VaultAsset));
-    setupVaultAsset(newAsset, (char *)assetName, (unsigned char *)assetData, assetDataSize);
+    setupVaultAsset(newAsset, (char *)assetName, assetDataSize, (unsigned char *)assetData);
     err = pushAsset(_vault, newAsset);
-    if(err != 0) {
-        
-        if (err == -1) {
+    if (err != 0)
+    {
+
+        if (err == -1)
+        {
             enclavePrintf("Unable to insert asset, vault is not in a valid state\n");
-        } else if (err == -2) {
+        }
+        else if (err == -2)
+        {
             enclavePrintf("Unable to insert asset, asset name is repeated\n");
         }
-        
+
         return -1;
     }
 
@@ -166,97 +171,109 @@ int ecallChangePassword(const char *newPsw, size_t newPswSize)
     return 0;
 }
 
-
 // we need to had the clone feature, but lets forget that for now
 
 /*
  * Sealing methods
  */
 
-void saveVault() {
+void saveVault()
+{
     int totalAssetsSize = 0;
     VaultAsset *node = _vault->asset;
-    while (node != NULL) {
-        totalAssetsSize += 32 + sizeof(node->name) + sizeof(node->size) + node->size;
+    while (node != NULL)
+    {
+        totalAssetsSize += 32 + sizeof(node->name) + sizeof(node->size) + node->size + sizeof(node->hash);
         node = node->next;
     }
 
-    char *data = (char*) malloc(sizeof(VaultHeader) + totalAssetsSize);
-    if (data == NULL) {
+    char *data = (char *)malloc(sizeof(VaultHeader) + totalAssetsSize);
+    if (data == NULL)
+    {
         enclavePrintf("Error: Memory allocation failed.\n");
         return;
     }
 
-    memcpy(data, (char*)&_vault->header, sizeof(VaultHeader));
+    memcpy(data, (char *)&_vault->header, sizeof(VaultHeader));
 
     size_t offset = sizeof(VaultHeader);
     node = _vault->asset;
-    while (node != NULL) {
-        size_t assetSize = 32 + sizeof(node->name) + sizeof(node->size) + node->size;
+    while (node != NULL)
+    {
+        size_t assetSize = 32 + sizeof(node->name) + sizeof(node->size) + node->size + sizeof(node->hash); // TESTING: Saving hash
 
         memcpy(data + offset, node->hash, 32);
         memcpy(data + offset + 32, node->name, sizeof(node->name));
         memcpy(data + offset + 32 + sizeof(node->name), &node->size, sizeof(node->size));
-        memcpy(data + offset + 32 + sizeof(node->name) + sizeof(node->size), node->content, node->size);
+
+        memcpy(data + offset + 32 + sizeof(node->name) + sizeof(node->size), &node->hash, sizeof(node->hash)); // TESTING: Saving hash
+        memcpy(data + offset + 32 + sizeof(node->name) + sizeof(node->size) + sizeof(node->hash), node->content, node->size);
 
         offset += assetSize;
         node = node->next;
     }
 
     sgx_status_t ret;
-    sgx_sealed_data_t* sealed_data = NULL;
+    sgx_sealed_data_t *sealed_data = NULL;
     size_t sealed_size = sizeof(sgx_sealed_data_t) + sizeof(VaultHeader) + totalAssetsSize;
-    sealed_data = (sgx_sealed_data_t*)malloc(sealed_size);
-    if (sealed_data == NULL) {
+    sealed_data = (sgx_sealed_data_t *)malloc(sealed_size);
+    if (sealed_data == NULL)
+    {
         enclavePrintf("Error: Memory allocation failed.\n");
         free(data);
         return;
     }
 
-    ret = sgx_seal_data(0, NULL, sizeof(VaultHeader) + totalAssetsSize, (uint8_t*)data, sealed_size, sealed_data);
-    if (ret != SGX_SUCCESS) {
+    ret = sgx_seal_data(0, NULL, sizeof(VaultHeader) + totalAssetsSize, (uint8_t *)data, sealed_size, sealed_data);
+    if (ret != SGX_SUCCESS)
+    {
         enclavePrintf("Error: Sealing failed (%#x).\n", ret);
         free(data);
         free(sealed_data);
         return;
     }
 
-    ocallSaveSealedData((uint8_t*)sealed_data, sealed_size, _vault->header.name);
+    ocallSaveSealedData((uint8_t *)sealed_data, sealed_size, _vault->header.name);
 
     free(data);
     free(sealed_data);
 }
 
-
-int loadVault(const char* fileName)
+int loadVault(const char *fileName)
 {
     sgx_status_t ret = SGX_ERROR_UNEXPECTED;
     int sealed_size;
 
-    // This sizes can be considered de maximum size of the vault
-    sgx_sealed_data_t* sealed_data = (sgx_sealed_data_t*) malloc(1024*16);
-    char* unsealed_data = (char*) malloc(1024*16);
+    // This size can be considered de maximum size of the vault
+    sgx_sealed_data_t *sealed_data = (sgx_sealed_data_t *)malloc(1024 * 16);
+    char *unsealed_data = (char *)malloc(1024 * 16);
 
-    ocallLoadSealedData(&sealed_size, (uint8_t*)sealed_data, fileName);
-    if (!sealed_data) {
+    ocallLoadSealedData(&sealed_size, (uint8_t *)sealed_data, fileName);
+    if (!sealed_data)
+    {
         return 1;
     }
 
-    ret = sgx_unseal_data(sealed_data, NULL, NULL, (uint8_t*)unsealed_data, (uint32_t*) &sealed_size);
-    if (ret != SGX_SUCCESS) {
+    ret = sgx_unseal_data(sealed_data, NULL, NULL, (uint8_t *)unsealed_data, (uint32_t *)&sealed_size);
+    if (ret != SGX_SUCCESS)
+    {
         enclavePrintf("Error: Unsealing failed\n");
         return 1;
     }
 
-    setupVaultHeader(&_vault->header, &unsealed_data[32], &unsealed_data[64], &unsealed_data[100]);
-
+    setupVaultHeader(&_vault->header, &unsealed_data[32], &unsealed_data[64], &unsealed_data[96]);
 
     enclavePrintf("Loading assets...\n");
     int i = sizeof(VaultHeader);
     while (i < sealed_size)
     {
         VaultAsset *newAsset = (VaultAsset *)malloc(sizeof(VaultAsset));
-        setupVaultAsset(newAsset, &unsealed_data[i+32], (unsigned char*) &unsealed_data[i+68], unsealed_data[i+64]);
+
+        // TODO: extract hash
+
+        setupVaultAsset(newAsset, &unsealed_data[i + 32], unsealed_data[i + 64], (unsigned char *)&unsealed_data[i + 100]);
+        // TODO: Comparing hash
+        // ---
         pushAsset(_vault, newAsset);
         i += 68 + newAsset->size;
     }
