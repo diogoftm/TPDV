@@ -204,7 +204,10 @@ void saveVault()
         memcpy(data + offset, node->hash, 32);
         memcpy(data + offset + 32, node->name, sizeof(node->name));
         memcpy(data + offset + 32 + sizeof(node->name), &node->size, sizeof(node->size));
-        memcpy(data + offset + 32 + sizeof(node->name) + sizeof(node->size), node->content, node->size);
+        // TESTING: Saving hash
+        memcpy(data + offset + 32 + sizeof(node->name) + sizeof(node->size), &node->hash, sizeof(node->hash));
+        memcpy(data + offset + 32 + sizeof(node->name) + sizeof(node->size) + sizeof(node->hash), node->content, node->size);
+        // ---
 
         offset += assetSize;
         node = node->next;
@@ -258,20 +261,17 @@ int loadVault(const char *fileName)
         return 1;
     }
 
+    // TODO: Why 100 and not 96 ? Needs testing...
     setupVaultHeader(&_vault->header, &unsealed_data[32], &unsealed_data[64], &unsealed_data[100]);
-
-    // TESTING
-    //enclavePrintf("Loading hashs...\n");
-    //int i = sizeof(VaultHeader);
-    //
-    // ---
 
     enclavePrintf("Loading assets...\n");
     int i = sizeof(VaultHeader);
     while (i < sealed_size)
     {
         VaultAsset *newAsset = (VaultAsset *)malloc(sizeof(VaultAsset));
-        setupVaultAsset(newAsset, &unsealed_data[i + 32], (unsigned char *)&unsealed_data[i + 68], unsealed_data[i + 64]);
+        // TESTING: Passing hash
+        setupVaultAsset(newAsset, &unsealed_data[i + 32], unsealed_data[i + 64], (unsigned char *)&unsealed_data[i + 68], (unsigned char *)&unsealed_data[i + 100], );
+        // ---
         pushAsset(_vault, newAsset);
         i += 68 + newAsset->size;
     }

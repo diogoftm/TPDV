@@ -22,15 +22,8 @@ void setupVault(Vault *vault)
     vault->asset = NULL;
 }
 
-// TESTING
-int setupVaultAssetChecksum(VaultAssetChecksum *vaultAssetChecksum, u_int8_t *hash)
-{
-
-    return 0
-}
-// ---
-
-int setupVaultAsset(VaultAsset *vaultAsset, char *name, unsigned char *content, size_t contentSize)
+// TESTING: Passing hash
+int setupVaultAsset(VaultAsset *vaultAsset, char *name, size_t contentSize, unsigned char *hash, unsigned char *content)
 {
     size_t nameSize = strlen(name) + 1;
 
@@ -45,6 +38,8 @@ int setupVaultAsset(VaultAsset *vaultAsset, char *name, unsigned char *content, 
     memcpy(vaultAsset->content, content, contentSize * sizeof(unsigned char));
 
     sgx_sha256_msg(vaultAsset->content, (uint32_t)contentSize - 1, vaultAsset->hash);
+
+    // TODO: compare vaultAsset->hash and hash from argument
 
     vaultAsset->next = NULL;
     vaultAsset->previous = NULL;
