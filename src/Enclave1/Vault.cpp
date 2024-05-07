@@ -12,8 +12,7 @@
 #include <string.h>
 #include <stdarg.h>
 #include <stdio.h>
-#include <cstdlib>
-#include <ctime>
+#include <sgx_trts.h>
 
 VaultState getState(Vault *vault) { return vault->state; }
 
@@ -45,21 +44,10 @@ int setupVaultAsset(VaultAsset *vaultAsset, char *name, unsigned char *content, 
     return 0;
 }
 
-// TESTING
-void generateNonce(unsigned char *nonce)
-{
-    srand(time(nullptr));
-
-    for (int i = 0; i < 32; ++i)
-    {
-        nonce[i] = rand() % 256;
-    }
-}
-
 void setupVaultHeader(VaultHeader *vaultHeader, char *name, char *password, char *author)
 {
     memcpy(vaultHeader->name, name, sizeof(vaultHeader->name));
-    generateNonce(vaultHeader->nonce); // TESTING
+    sgx_read_rand(vaultHeader->nonce, sizeof(vaultHeader->nonce)); // TESTING
     // memcpy(vaultHeader->nonce, "", sizeof(vaultHeader->nonce)); // TODO: mudar para colocar um numero random
     memcpy(vaultHeader->password, password, sizeof(vaultHeader->password));
     memcpy(vaultHeader->author, author, sizeof(vaultHeader->author));
