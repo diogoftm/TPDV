@@ -22,6 +22,14 @@ void setupVault(Vault *vault)
     vault->asset = NULL;
 }
 
+// TESTING
+int setupVaultAssetChecksum(VaultAssetChecksum *vaultAssetChecksum, u_int8_t *hash)
+{
+
+    return 0
+}
+// ---
+
 int setupVaultAsset(VaultAsset *vaultAsset, char *name, unsigned char *content, size_t contentSize)
 {
     size_t nameSize = strlen(name) + 1;
@@ -47,8 +55,8 @@ int setupVaultAsset(VaultAsset *vaultAsset, char *name, unsigned char *content, 
 void setupVaultHeader(VaultHeader *vaultHeader, char *name, char *password, char *author)
 {
     memcpy(vaultHeader->name, name, sizeof(vaultHeader->name));
-    sgx_read_rand(vaultHeader->nonce, sizeof(vaultHeader->nonce)); // TESTING
-    // memcpy(vaultHeader->nonce, "", sizeof(vaultHeader->nonce)); // TODO: mudar para colocar um numero random
+    // sgx_read_rand(vaultHeader->nonce, sizeof(vaultHeader->nonce)); // TESTING
+    memcpy(vaultHeader->nonce, "", sizeof(vaultHeader->nonce)); // TODO: mudar para colocar um numero random
     memcpy(vaultHeader->password, password, sizeof(vaultHeader->password));
     memcpy(vaultHeader->author, author, sizeof(vaultHeader->author));
     vaultHeader->numberOfFiles = 0;

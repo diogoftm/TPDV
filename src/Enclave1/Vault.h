@@ -25,6 +25,7 @@ struct VaultHeader
     int numberOfFiles;
 };
 
+
 struct VaultAsset
 {
     sgx_sha256_hash_t hash[SGX_SHA256_HASH_SIZE];
@@ -35,16 +36,25 @@ struct VaultAsset
     VaultAsset *previous;
 };
 
+struct VaultAssetChecksum
+{
+    sgx_sha256_hash_t hash[SGX_SHA256_HASH_SIZE];
+    VaultAssetChecksum *next;
+    VaultAssetChecksum *previous;
+}
+
 struct Vault
 {
     VaultHeader header;
+    VaultAssetChecksum *checksum;
     VaultAsset *asset;
     VaultState state;
 };
 
 VaultState getState(Vault* vault);
 void setupVault(Vault *vault);
-int setupVaultAsset(VaultAsset *vaultAsset, char *name, unsigned char* content, size_t contentSize);
+int setupVaultAssetChecksum(VaultAssetChecksum *vaultAssetChecksum, u_int8_t *hash); // TESTING
+int setupVaultAsset(VaultAsset *vaultAsset, char *name, unsigned char *content, size_t contentSize);
 void setupVaultHeader(VaultHeader *vaultHeader, char *name, char *password, char *author);
 int copyWithoutNeighborsDeeply(VaultAsset *src, VaultAsset *dst);
 int pushAsset(Vault *vault, VaultAsset *asset);
