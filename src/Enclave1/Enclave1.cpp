@@ -4,6 +4,7 @@
 #include <stdarg.h>
 #include <stdio.h>
 
+#include "sgx_tcrypto.h"
 #include "sgx_trts.h"
 #include "sgx_tseal.h"
 #include "Enclave1.h"
@@ -62,7 +63,7 @@ int ecallInsertAsset(const char *assetName, size_t assetNameSize, const uint8_t 
 {
     int err = 0;
     VaultAsset *newAsset = (VaultAsset *)malloc(sizeof(VaultAsset));
-    setupVaultAsset(newAsset, (char *)assetName, (unsigned char *)assetData, assetDataSize);
+    setupVaultAsset(newAsset, (char *)assetName, assetDataSize, (unsigned char *)assetData);
     err = pushAsset(_vault, newAsset);
     if (err != 0)
     {
@@ -262,15 +263,23 @@ int loadVault(const char *fileName)
     }
 
     // TODO: Why 100 and not 96 ? Needs testing...
-    setupVaultHeader(&_vault->header, &unsealed_data[32], &unsealed_data[64], &unsealed_data[100]);
+    setupVaultHeader(&_vault->header, &unsealed_data[32], &unsealed_data[64], &unsealed_data[96]);
 
     enclavePrintf("Loading assets...\n");
     int i = sizeof(VaultHeader);
     while (i < sealed_size)
     {
         VaultAsset *newAsset = (VaultAsset *)malloc(sizeof(VaultAsset));
-        // TESTING: Passing hash
-        setupVaultAsset(newAsset, &unsealed_data[i + 32], unsealed_data[i + 64], (unsigned char *)&unsealed_data[i + 68], (unsigned char *)&unsealed_data[i + 100], );
+        // TESTING: Comparing hashs
+        setupVaultAsset(newAsset, &unsealed_data[i + 32], unsealed_data[i + 64], (unsigned char *)&unsealed_data[i + 100]);
+
+        sgx_sha256_hash_t hash[SGX_SHA256_HASH_SIZE];
+        memccpy(hash, (unsigned char *)&unsealed_data[i + 68], SGX_SHA256_HASH_SIZE);
+
+        if (newAsset->hash != hash)
+        {
+            return 1;
+        }
         // ---
         pushAsset(_vault, newAsset);
         i += 68 + newAsset->size;

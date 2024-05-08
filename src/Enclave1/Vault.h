@@ -45,7 +45,7 @@ struct Vault
 
 VaultState getState(Vault* vault);
 void setupVault(Vault *vault);
-int setupVaultAsset(VaultAsset *vaultAsset, char *name, size_t contentSize, unsigned char hash, unsigned char *content);
+int setupVaultAsset(VaultAsset *vaultAsset, char *name, size_t contentSize, unsigned char *content);
 void setupVaultHeader(VaultHeader *vaultHeader, char *name, char *password, char *author);
 int copyWithoutNeighborsDeeply(VaultAsset *src, VaultAsset *dst);
 int pushAsset(Vault *vault, VaultAsset *asset);
