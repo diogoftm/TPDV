@@ -183,7 +183,7 @@ void saveVault()
     VaultAsset *node = _vault->asset;
     while (node != NULL)
     {
-        totalAssetsSize += 32 + sizeof(node->name) + sizeof(node->size) + node->size;
+        totalAssetsSize += 32 + sizeof(node->name) + sizeof(node->size) + node->size + sizeof(node->hash);
         node = node->next;
     }
 
@@ -200,15 +200,14 @@ void saveVault()
     node = _vault->asset;
     while (node != NULL)
     {
-        size_t assetSize = 32 + sizeof(node->name) + sizeof(node->size) + node->size;
+        size_t assetSize = 32 + sizeof(node->name) + sizeof(node->size) + node->size + sizeof(node->hash); // TESTING: Saving hash
 
         memcpy(data + offset, node->hash, 32);
         memcpy(data + offset + 32, node->name, sizeof(node->name));
         memcpy(data + offset + 32 + sizeof(node->name), &node->size, sizeof(node->size));
-        // TESTING: Saving hash
-        memcpy(data + offset + 32 + sizeof(node->name) + sizeof(node->size), &node->hash, sizeof(node->hash));
+
+        memcpy(data + offset + 32 + sizeof(node->name) + sizeof(node->size), &node->hash, sizeof(node->hash)); // TESTING: Saving hash
         memcpy(data + offset + 32 + sizeof(node->name) + sizeof(node->size) + sizeof(node->hash), node->content, node->size);
-        // ---
 
         offset += assetSize;
         node = node->next;
@@ -262,7 +261,6 @@ int loadVault(const char *fileName)
         return 1;
     }
 
-    // TODO: Why 100 and not 96 ? Needs testing...
     setupVaultHeader(&_vault->header, &unsealed_data[32], &unsealed_data[64], &unsealed_data[96]);
 
     enclavePrintf("Loading assets...\n");
@@ -270,16 +268,11 @@ int loadVault(const char *fileName)
     while (i < sealed_size)
     {
         VaultAsset *newAsset = (VaultAsset *)malloc(sizeof(VaultAsset));
-        // TESTING: Comparing hashs
+
+        // TODO: extract hash
+
         setupVaultAsset(newAsset, &unsealed_data[i + 32], unsealed_data[i + 64], (unsigned char *)&unsealed_data[i + 100]);
-
-        sgx_sha256_hash_t hash[SGX_SHA256_HASH_SIZE];
-        memccpy(hash, (unsigned char *)&unsealed_data[i + 68], SGX_SHA256_HASH_SIZE);
-
-        if (newAsset->hash != hash)
-        {
-            return 1;
-        }
+        // TODO: Comparing hash
         // ---
         pushAsset(_vault, newAsset);
         i += 68 + newAsset->size;
