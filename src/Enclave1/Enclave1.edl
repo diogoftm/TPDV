@@ -35,7 +35,7 @@ enclave {
     trusted {
         public int ecallOpenVault([in, string] const char* fileName, [in, string] const char* psw);
         public int ecallCreateVault([in, string] const char* vaultName, [in, string] const char* psw, [in, string] const char* author);
-        public int ecallInsertAsset([in, count=assetNameSize] const char *assetName, size_t assetNameSize, [in, count=assetDataSize] const unsigned char *assetData, int assetDataSize);
+        public int ecallInsertAsset([in, count=assetNameSize] const char *assetName, size_t assetNameSize, [in, count=assetDataSize] const char *assetData, int assetDataSize);
         public int ecallListAssets(void);
         public int ecallPrintAsset([in, string] char *name);
         public int ecallSaveAssetToFile([in, string] char *assetName, [in, string] char* fileName);
