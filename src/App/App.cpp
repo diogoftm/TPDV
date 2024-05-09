@@ -264,6 +264,8 @@ uint8_t* readFile(char *filename, long& len)
     return NULL;
   }
 
+  buffer[file_size] = '\0';
+
   fclose(file);
 
   len = file_size;
@@ -413,7 +415,7 @@ void handleAddAssetFromFile()
     return;
   }
 
-  if ((ret = ecallInsertAsset(global_eid1, &ret_val, assetName, strlen(assetName) + 1, fileContent, flen)) != SGX_SUCCESS)
+  if ((ret = ecallInsertAsset(global_eid1, &ret_val, assetName, strlen(assetName) + 1, fileContent, flen+1)) != SGX_SUCCESS)
   {
     print_error_message(ret, "ecallInsertAsset");
     handleKillEnclaveAndExit();
@@ -905,7 +907,6 @@ int SGX_CDECL main(int argc, char *argv[])
     case 7:
       handleChangePassword();
       break;
-
     case 8:
       handleServeVaultCloneOption();
       break;

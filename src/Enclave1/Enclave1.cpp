@@ -235,7 +235,6 @@ void saveVault()
 
     ocallSaveSealedData((uint8_t *)sealed_data, sealed_size, _vault->header.name);
 
-    free(data);
     free(sealed_data);
 }
 
