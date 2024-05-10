@@ -74,6 +74,26 @@ block-beta
 ```
 
 ## Clone vault
+Clone a vault from a remote host was implemented using TLS communication. It consists of a TLS server which waits for clients and a client that requests the vault.
 
+TLS requires trusted certificates to run properly, a script obtained from (here)[https://github.com/diogoftm/simulated-kms/blob/main/certs/makefile] which generates certificates signed by a self signed CA. These certificates are loaded by the server and the client is configured to trust the CA.
 
+Implementation of client and server can be found in `src/App/AppSocket.cpp`. A simple message exchange protocol was built to support base communication (`BaseMessageLayer`).
+
+The clone happens on top of that protocol, both server and client communication depends on a callback passed as argument to setup functions (see `TlsClient::connect(...)`  and `TlsServer::run_server(...)`). Both callbacks were defined in `src/App.cpp` (`serveClientCallback(SSL* ssl)` and `clientConnectionWithServerCallback(SSL* ssl)`).
+
+Clone was divided in some phases, after communication is initialized the following steps (in case of success) happen.
+
+1. Client sends a request clone message.
+2. Server asks for vault name.
+3. Client asks user for vault name, (if it's not present in server, server responses with a invalid vault message response and the communication terminates).
+4. Server transmits vault data to the client.
+5. Client sends an ok message after clone is completed. 
+6. Server sends a close session message.
+
+Server is not validating the client certificate, it could be implemented by adding some extra steps which could include asking for the client certificate, verifying if it was signed by the CA and then a challenge sign response would need to happen.
+
+Even if a malicius client clones the vault, he would never be able to obtain vault decrypted data without knowing vault password and private key used by the enclave. 
+
+//One major issue with sealing system is that the key used to encrypt the data is specific to the version of the enclave, so keeping the data from multiple software versions needs extra mechanisms. To solve...
 # Conclusions
