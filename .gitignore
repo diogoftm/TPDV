@@ -43,3 +43,4 @@ app
 *.pem
 
 vault
+*.err
