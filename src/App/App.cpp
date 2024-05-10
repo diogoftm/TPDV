@@ -784,9 +784,14 @@ int handleOpenVaultOption(char* vaultName, char* input) {
 
     if ((ret = ecallOpenVault(global_eid1, &returnVal, vaultName, password)) != SGX_SUCCESS)
     {
-      print_error_message(ret, "Ups! Something went wrong...");
+      if (ret == 2){
+        print_error_message(ret, "Ups! Hashs didn't match, someone messed with your files...");
+      } else {
+        print_error_message(ret, "Ups! Something went wrong...");
+      }
       return 1;
     }
+
     if (returnVal == 0)
       printf("Info: The vault was successfully opened!\n");
 

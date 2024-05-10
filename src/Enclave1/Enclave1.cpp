@@ -53,10 +53,12 @@ int ecallOpenVault(const char *fileName, const char *psw)
 
     int status = loadVault(fileName);
 
-    if (status == 1 || strcmp(_vault->header.password, psw) != 0)
+    if (strcmp(_vault->header.password, psw) != 0)
+    {
         return 1;
+    }
 
-    return 0;
+    return status;
 }
 
 int ecallInsertAsset(const char *assetName, size_t assetNameSize, const uint8_t *assetData, int assetDataSize)
@@ -183,7 +185,7 @@ void saveVault()
     VaultAsset *node = _vault->asset;
     while (node != NULL)
     {
-        totalAssetsSize += 32 + sizeof(node->name) + sizeof(node->size) + node->size + sizeof(node->hash);
+        totalAssetsSize += 32 + sizeof(node->name) + sizeof(node->size) + node->size + 32;
         node = node->next;
     }
 
@@ -200,14 +202,14 @@ void saveVault()
     node = _vault->asset;
     while (node != NULL)
     {
-        size_t assetSize = 32 + sizeof(node->name) + sizeof(node->size) + node->size + sizeof(node->hash); // TESTING: Saving hash
+        size_t assetSize = 32 + sizeof(node->name) + sizeof(node->size) + node->size + 32;
 
         memcpy(data + offset, node->hash, 32);
         memcpy(data + offset + 32, node->name, sizeof(node->name));
         memcpy(data + offset + 32 + sizeof(node->name), &node->size, sizeof(node->size));
 
-        memcpy(data + offset + 32 + sizeof(node->name) + sizeof(node->size), &node->hash, sizeof(node->hash)); // TESTING: Saving hash
-        memcpy(data + offset + 32 + sizeof(node->name) + sizeof(node->size) + sizeof(node->hash), node->content, node->size);
+        memcpy(data + offset + 32 + sizeof(node->name) + sizeof(node->size), &node->hash, 32);
+        memcpy(data + offset + 32 + sizeof(node->name) + sizeof(node->size) + 32, node->content, node->size);
 
         offset += assetSize;
         node = node->next;
@@ -268,11 +270,16 @@ int loadVault(const char *fileName)
     {
         VaultAsset *newAsset = (VaultAsset *)malloc(sizeof(VaultAsset));
 
-        // TODO: extract hash
+        sgx_sha256_hash_t hash;
+        memcpy(&hash, &unsealed_data[i + 68], 32);
 
         setupVaultAsset(newAsset, &unsealed_data[i + 32], unsealed_data[i + 64], (unsigned char *)&unsealed_data[i + 100]);
-        // TODO: Comparing hash
-        // ---
+
+        if (!ecallCheckDigest(newAsset->name, (const char *)hash))
+        {
+            return 2;
+        }
+
         pushAsset(_vault, newAsset);
         i += 68 + newAsset->size;
     }
