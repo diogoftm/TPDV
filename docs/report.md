@@ -76,7 +76,7 @@ block-beta
 ## Clone vault
 Clone a vault from a remote host was implemented using TLS communication. It consists of a TLS server which waits for clients and a client that requests the vault.
 
-TLS requires trusted certificates to run properly, a script obtained from (here)[https://github.com/diogoftm/simulated-kms/blob/main/certs/makefile] which generates certificates signed by a self signed CA. These certificates are loaded by the server and the client is configured to trust the CA.
+TLS requires trusted certificates to run properly, a script obtained from (here)[https://github.com/diogoftm/simulated-kms/blob/main/certs/makefile] which generates certificates signed by a self signed CA. These certificates are loaded by the server and the client.
 
 Implementation of client and server can be found in `src/App/AppSocket.cpp`. A simple message exchange protocol was built to support base communication (`BaseMessageLayer`).
 
@@ -87,13 +87,12 @@ Clone was divided in some phases, after communication is initialized the followi
 1. Client sends a request clone message.
 2. Server asks for vault name.
 3. Client asks user for vault name, (if it's not present in server, server responses with a invalid vault message response and the communication terminates).
-4. Server transmits vault data to the client.
-5. Client sends an ok message after clone is completed. 
+4. Server transmits unsealed vault data (encrypted with hash of the vault password using AESGCM algorithm), data is obtained from `ecallGetUnsealedCipheredData`.
+5. Client sends an ok message after clone is completed.
 6. Server sends a close session message.
 
-Server is not validating the client certificate, it could be implemented by adding some extra steps which could include asking for the client certificate, verifying if it was signed by the CA and then a challenge sign response would need to happen.
+After clone is completed, client will ask user for the vault password and will decipher it inside the enclave using the same process as the server (AESGCM with the password hash).
 
-Even if a malicius client clones the vault, he would never be able to obtain vault decrypted data without knowing vault password and private key used by the enclave. 
+Server is not validating the client certificate, it could be implemented by adding some extra steps which could include asking for the client certificate, verifying if is the same as the server and then asking for a challenge to be signed by the client (proof that client has the private certificate key).
 
-//One major issue with sealing system is that the key used to encrypt the data is specific to the version of the enclave, so keeping the data from multiple software versions needs extra mechanisms. To solve...
 # Conclusions
