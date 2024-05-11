@@ -169,6 +169,21 @@ int ecallListAssets()
     return 0;
 }
 
+int ecallVaultInfo()
+{
+    if (getState(_vault) != VALID)
+    {
+        enclavePrintf("Unable to print vault info, vault is not in a valid state\n");
+        return -1;
+    }
+
+    VaultHeader vaultHeader = _vault->header;
+
+    enclavePrintf("Name:\t\t %s\nAuthor:\t\t %s\nNumber of files: %d\n", _vault->header.name, _vault->header.author, _vault->header.numberOfFiles);
+
+    return 0;
+}
+
 int ecallPrintAsset(char *name)
 {
     VaultAsset *node = _vault->asset;

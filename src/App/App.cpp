@@ -437,6 +437,18 @@ void handleListAssets()
   }
 }
 
+void handleVaultInfo()
+{
+  sgx_status_t ret;
+  int ret_val;
+
+  if ((ret = ecallVaultInfo(global_eid1, &ret_val)) != SGX_SUCCESS)
+  {
+    print_error_message(ret, "ecallVaultInfo");
+    handleKillEnclaveAndExit();
+  }
+}
+
 void handlePrintAsset()
 {
   sgx_status_t ret;
@@ -863,7 +875,7 @@ int SGX_CDECL main(int argc, char *argv[])
   while (1)
   {
     printf("Menu:\n -1 - Exit\n  1 - Add asset from keyboard\n  2 - Add asset from file\n  3 - List assets \
-          \n  4 - Print asset\n  5 - Save asset to file\n  6 - Compare file digest\n  7 - Change password\n  8 - Allow remote vault clone\n");
+          \n  4 - Print asset\n  5 - Save asset to file\n  6 - Compare file digest\n  7 - Change password\n  8 - Allow remote vault clone\n  9 - Vault info\n");
 
     while (1)
     {
@@ -918,6 +930,9 @@ int SGX_CDECL main(int argc, char *argv[])
       break;
     case 8:
       handleServeVaultCloneOption();
+      break;
+    case 9:
+      handleVaultInfo();
       break;
     default:
       printf("Error: invalid option\n");
