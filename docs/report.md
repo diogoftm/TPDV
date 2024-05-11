@@ -60,6 +60,8 @@ sequenceDiagram
 
 The `setupVaultHeader` function will also be utilized whenever a vault is loaded, ensuring that a new random nonce is stored in the vault's header for future utilization.
 
+![Creating a vault](./assets/create_vault.png)
+
 ## Insert assets
 
 To make the vault functional, users need the ability to deposit assets into it. This can be achieved in two ways: either by entering content directly from `stdin` or by uploading a file. Regardless of the chosen method, the data is initially acquired from various sources and then transferred to the enclave via an `ecall`.
@@ -89,6 +91,10 @@ block-beta
         previous
     end
 ```
+
+![Insert asset via stdin](./assets/keyboard_asset.png)
+
+![Insert asset via stdin](./assets/file_asset.png)
 
 ## Saving the vault
 
@@ -175,6 +181,8 @@ while (node != NULL)
 ...
 ```
 
+![List assets](./assets/list_asset.png)
+
 ## Print assets
 
 Printing assets operates similarly to the previous functionality. However, in this case, the `ecall` prompts the enclave to print the content of the files to `stdout`. While this is highly useful for text-based content, it may not be as practical for binary files, as their raw binary data will be printed as output.
@@ -197,6 +205,8 @@ if (node != NULL)
 ...
 ```
 
+![Print assets](./assets/print_asset.png)
+
 ## Export assets
 
 If a user chooses to retrieve a file it has stored as an asset in the vault, it must be able to export it to a new file. Calling `ecallSaveAssetToFile` and providing the asset name and a new for the new file, the enclave will be able to handle this request.
@@ -209,6 +219,10 @@ sequenceDiagram
 
 When a user opts to retrieve a file stored as an asset in the vault, they must be able to export it to a new file. By invoking `ecallSaveAssetToFile` and specifying the asset name along with a new file name, the enclave can process this request.
 
+![Export asset to file](./assets/fileout_01_asset.png)
+
+![Content of exported file](./assets/fileout_02_asset.png)
+
 ## Compare assets hash
 
 A user may also wish to verify if an asset stored in the vault is the correct one. For this purpose, they should be able to compare its hash with one they possess. By invoking `ecallCheckDigest`, the user can provide the text-based hash, typically obtained from tools like `sha256sum`, to match it against the one calculated by the enclave. This comparison enables users to confirm the integrity and authenticity of the stored asset.
@@ -217,6 +231,8 @@ A user may also wish to verify if an asset stored in the vault is the correct on
 sequenceDiagram
     App ->> Enclave: ecallCheckDigest(assetName, digest)
 ```
+
+![Comparing hashs](./assets/hash_asset.png)
 
 ## Change passwords
 
@@ -230,6 +246,8 @@ sequenceDiagram
 ```
 
 This operation will replace the password stored in the header with the new one provided. Subsequently, saving the vault will seal the data, ensuring its security.
+
+![Changing password of the vault](./assets/change_password.png)
 
 ## Seal and unseal
 ```mermaid
