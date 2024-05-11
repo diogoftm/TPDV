@@ -327,7 +327,7 @@ static int getUnsealedDataLength(VaultAsset *node)
     int totalAssetsSize = 0;
     while (node != NULL)
     {
-        totalAssetsSize += 32 + sizeof(node->name) + sizeof(node->size) + node->size + 32;
+        totalAssetsSize += 32 + sizeof(node->name) + sizeof(node->size) + node->size;
         node = node->next;
     }
 
@@ -357,13 +357,12 @@ int ecallGetUnsealedCipheredData_2(uint32_t data_size, uint8_t *data)
     node = _vault->asset;
     while (node != NULL)
     {
-        size_t assetSize = 32 + sizeof(node->name) + sizeof(node->size) + node->size + 32;
+        size_t assetSize = 32 + sizeof(node->name) + sizeof(node->size) + node->size;
 
         memcpy(data + offset, node->hash, 32);
         memcpy(data + offset + 32, node->name, sizeof(node->name));
         memcpy(data + offset + 32 + sizeof(node->name), &node->size, sizeof(node->size));
 
-        memcpy(data + offset + 32 + sizeof(node->name) + sizeof(node->size), &node->hash, 32);
         memcpy(data + offset + 32 + sizeof(node->name) + sizeof(node->size) + 32, node->content, node->size);
 
         offset += assetSize;
