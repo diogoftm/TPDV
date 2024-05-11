@@ -34,6 +34,7 @@
 enclave {
     trusted {
         public int ecallOpenVault([in, string] const char* fileName, [in, string] const char* psw);
+        public int ecallOpenCipheredVault([in, count=data_size] char* data, size_t data_size, [in, string] char* psw);
         public int ecallCreateVault([in, string] const char* vaultName, [in, string] const char* psw, [in, string] const char* author);
         public int ecallInsertAsset([in, count=assetNameSize] const char *assetName, size_t assetNameSize, [in, count=assetDataSize] const unsigned char *assetData, int assetDataSize);
         public int ecallListAssets(void);
@@ -41,6 +42,9 @@ enclave {
         public int ecallSaveAssetToFile([in, string] char *assetName, [in, string] char* fileName);
         public char ecallCheckDigest([in, string] const char *assetName, [in, string] const char *digest);
         public int ecallChangePassword([in, count=newPswSize] const char *newPsw, size_t newPswSize);
+        public int ecallGetUnsealedCipheredData_1([out] uint32_t* data_size);
+        public int ecallGetUnsealedCipheredData_2(uint32_t data_size, [out, size=data_size] uint8_t* data); 
+
     };
     untrusted {
         void ocall_e1_print_string([in, string] const char *str);

@@ -157,3 +157,9 @@ int destroyVault(Vault *vault)
 
     return 1;
 }
+
+int findPasswordHash(char* psw, sgx_sha256_hash_t* dst) {
+    int len = strlen(psw);
+    sgx_sha256_msg((uint8_t*)psw, len, dst);
+    return len;
+}

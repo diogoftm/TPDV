@@ -52,7 +52,7 @@ int pushAsset(Vault *vault, VaultAsset *asset);
 int changePassword(Vault *vault, char *newPswd);
 int fetchAsset(Vault *vault, char name[32], VaultAsset *asset);
 int destroyVault(Vault *vault);
-
+int findPasswordHash(char* psw, sgx_sha256_hash_t* dst);
 
 #if defined(__cplusplus)
 }

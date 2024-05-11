@@ -42,6 +42,7 @@
 #include "Enclave1_u.h"
 #include <functional>
 #include <map>
+#include <string>
 
 #define MAX_DATA_SIZE 256
 
@@ -129,6 +130,8 @@ static sgx_errlist_t sgx_errlist[] =
      {SGX_ERROR_INVALID_ATT_KEY_CERT_DATA, "TThe data returned by the platform library's sgx_get_quote_config() is invalid"},
      {SGX_ERROR_PLATFORM_CERT_UNAVAILABLE, "The PCK Cert for the platform is not available"},
      {SGX_INTERNAL_ERROR_ENCLAVE_CREATE_INTERRUPTED, "The ioctl for enclave_create unexpectedly failed with EINTR"}};
+
+char vaultName[64];
 
 void print_error_message(sgx_status_t ret, const char *sgx_function_name)
 {
@@ -583,9 +586,11 @@ int serveClientCallback(SSL* ssl) {
 
   printf("[2/7] Client asked for vault named '%s'\n", (char*)(message));
   printf("[3/7] Reading '%s' vault sealed data...\n", (char*)message);
-
-  long flen;
-  uint8_t* vault_data = readFile((char*)message, flen);
+  int retval;
+  uint32_t data_size;
+  ecallGetUnsealedCipheredData_1(global_eid1, &retval, &data_size);
+  uint8_t* vault_data = (uint8_t*)malloc(sizeof(uint8_t) * data_size);
+  ecallGetUnsealedCipheredData_2(global_eid1, &retval, data_size, vault_data);
 
   if(vault_data == NULL) {
     printf("[4/7] Sending vault does not exist message to client\n");
@@ -598,8 +603,8 @@ int serveClientCallback(SSL* ssl) {
 
   free(message);
 
-  printf("[5/7] Sending vault data (%ld bytes) ...\n", flen);
-  BaseMessageLayer::send_message(ssl, vault_data, flen);
+  printf("[5/7] Sending vault data (%d bytes) ...\n", data_size);
+  BaseMessageLayer::send_message(ssl, vault_data, data_size);
 
   BaseMessageLayer::receive_message(ssl, &message, mlen);
 
@@ -631,7 +636,7 @@ int serveClientCallback(SSL* ssl) {
 
 int clientConnectionWithServerCallback(SSL* ssl) {
   int errc;
-  printf("[0/6] Sending REQUEST_CLONE to server\n");
+  printf("[0/7] Sending REQUEST_CLONE to server\n");
   BaseMessageLayer::send_message(ssl, (uint8_t*)MESSAGE_MAP[MESSAGE_TYPES::REQUEST_CLONE], strlen(MESSAGE_MAP[MESSAGE_TYPES::REQUEST_CLONE]) + 1);
 
   uint8_t* response;
@@ -639,23 +644,23 @@ int clientConnectionWithServerCallback(SSL* ssl) {
   BaseMessageLayer::receive_message(ssl, &response, response_length);
 
   if(strcmp((char*)response, MESSAGE_MAP[MESSAGE_TYPES::SEND_VAULT_NAME]) != 0) {
-    fprintf(stdout, "[1/6] Expected SEND_VAULT_NAME response from server\n");
-    fprintf(stdout, "[1/6] Message received: %s\n", (char*)response);
+    fprintf(stdout, "[1/7] Expected SEND_VAULT_NAME response from server\n");
+    fprintf(stdout, "[1/7] Message received: %s\n", (char*)response);
     free(response);
     return 0;
   }
 
   free(response);
 
-  char vaultName[64];
-  printf("[2/6] Server asked for vault name: ");
+
+  printf("[2/7] Server asked for vault name: ");
   readStdin(vaultName, 32);
   BaseMessageLayer::send_message(ssl, (uint8_t*)vaultName, strlen(vaultName) + 1);
 
   BaseMessageLayer::receive_message(ssl, &response, response_length);
 
   if(strcmp((char*)response, MESSAGE_MAP[MESSAGE_TYPES::INVALID_VAULT]) == 0) {
-    fprintf(stderr, "[3/6] Server responded with invalid vault response, check if vault is exists.\n");
+    fprintf(stderr, "[3/7] Server responded with invalid vault response, check if vault is exists.\n");
     free(response);
     return 0;
   }
@@ -666,22 +671,20 @@ int clientConnectionWithServerCallback(SSL* ssl) {
     fprintf(stderr, "[4/6] SSL error while receiving vault data.\n");
     return 0;
   }
-  printf("[4/6] Received vault sealed data (%d bytes) from remote server...\n ", response_length);
+  printf("[4/7] Received vault unsealed encrypted data (%d bytes) from remote server...\n ", response_length);
   
-  const char* clone_str = "_cloned";
-  char* dstFileName = (char*)malloc(sizeof(char) * strlen(vaultName) + strlen(clone_str) + 1);
-  memcpy(dstFileName, vaultName, strlen(vaultName));
-  memcpy(dstFileName + strlen(vaultName), clone_str, strlen(clone_str) + 1);
-  ocallSaveDataToFile((char*)response, response_length, dstFileName);
+  printf("[5/7] Please enter vault password: ");
+  char password[64];
+  readStdin(password, 32);
+  int retval;
 
-  printf("[4/6] Clone data saved in %s\n", dstFileName);
-
-  free(dstFileName);
+  ecallOpenCipheredVault(global_eid1, &retval, (char*)response, response_length, password);
   free(response);
   
   BaseMessageLayer::send_message(ssl, (uint8_t*)MESSAGE_MAP[MESSAGE_TYPES::OK], strlen(MESSAGE_MAP[MESSAGE_TYPES::OK]) + 1);
-  printf("[5/6] Sending OK message\n");
-  //close session is expected here
+  printf("[6/7] Sending OK message\n");
+
+
   BaseMessageLayer::receive_message(ssl, &response, response_length);
 
   if(strcmp((char*)response, MESSAGE_MAP[MESSAGE_TYPES::CLOSE_SESSION]) != 0) {
@@ -691,7 +694,9 @@ int clientConnectionWithServerCallback(SSL* ssl) {
   }
 
   BaseMessageLayer::send_message(ssl, (uint8_t*)MESSAGE_MAP[MESSAGE_TYPES::ACK_CLOSE_SESSION], strlen(MESSAGE_MAP[MESSAGE_TYPES::ACK_CLOSE_SESSION]) + 1);
-  printf("[6/6] Clone finished\n");
+  printf("[7/7] Clone finished\n");
+
+
   return 0;
   
 }
@@ -803,7 +808,7 @@ int handleStartOptions(int option, char* vaultName, char* input) {
     case 1: return handleOpenVaultOption(vaultName, input) != 0 ? -1 : 0;
     case 2: return handleCreateVaultOption(vaultName) != 0 ? -1 : 0;
     case 3: return 0;
-    case 4: return handleLoadRemoteVaultOption() != 0 ? -1 : -1;
+    case 4: return handleLoadRemoteVaultOption() != 0 ? -1 : 0;
     default: return 0;
   }
 
@@ -813,7 +818,6 @@ int handleStartOptions(int option, char* vaultName, char* input) {
 
 int SGX_CDECL main(int argc, char *argv[])
 {
-  char vaultName[32];
   char input[100];
   sgx_status_t ret;
 
