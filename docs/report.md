@@ -1,6 +1,6 @@
 ---
 geometry: margin=15mm
-title: Suspicious Deb package - Analysis
+title: Tamper Proof Digital Vault (TPDV)
 author: Tiago Silvestre - tiago.silvestre@ua.pt, Diogo Matos - dftm@ua.pt, David Araújo - davidaraujo@ua.pt
 date: May 12, 2024
 ---
@@ -25,9 +25,9 @@ date: May 12, 2024
 
 
 # Introduction
-The goal of this project is to implement a "tamper-proof digital vault" (TPDV) taking advantage of Intel's SGX enclaves. The TPDV stores digital assets and will be write once, without any possibility of deleting information. A malicious operator may destroy the entire TPDV, but it may not change anything already stored in it without that being detected.
+The objective of this project is to develop a "tamper-proof digital vault" (TPDV) leveraging Intel's SGX enclaves. The TPDV is designed to securely store digital assets in a write-once manner, preventing any alteration or deletion of stored information. Although a malicious operator could potentially destroy the entire TPDV, they cannot modify any existing data without detection.
 
-In this report we provide a brief overview of our implementation of the TPDV and show the results of some tests performed when suited. We start out by presenting the [overall structure](#overall-structure) of the system, then we go [feature by feature](#features-and-tests) providing some insight into how they work. In the end, we sum everything in the [conclusions](#conclusions).
+This report offers a concise overview of our TPDV implementation, along with the results from various conducted tests. We commence by outlining the [overall structure](#overall-structure) of the system, followed by a detailed examination of its individual [feature by feature](#features-and-tests). Finally, we consolidate our findings in the [conclusions](#conclusions).
 
 # Overall structure
 ```mermaid
@@ -40,412 +40,203 @@ sequenceDiagram
     Enclave->>App: Return secure operation result
 ```
 
-There's two modules, the application `app.cpp`, and the enclave `enclave1.cpp`. All the code inside application is executed **without any extra isolation**, on the other hand the code from `enclave.cpp` is executed inside the SGX enclave. The first thing that the application does, is to create the enclave and every time a critical operation needs to be executed, it performs an `ecall`, e.g. call an enclave method. The enclave runs in a limited environment so, sometimes, it might need to perform an action that has no security risk (e.g. a print, read a file) and can easily be perform outside the enclave. To do so, the enclave does a `ocall` in order to call a method outside the enclave.
+There are two modules in this project: the application `app.cpp` and the enclave `Enclave1.cpp`. The code within the application module runs **without any additional isolation**, while the code within `Enclave1.cpp` executes within the secure confines of an SGX enclave.
 
-For our specific use case, the part of the program that runs outside the enclave has the main goal to provide an interface to the user for him/her to interact with the vault. All the operation that clearly interact with the vault are performed inside the enclave.
+Upon initialization, the application creates the enclave, and **whenever a critical operation is required**, such as accessing sensitive data, it invokes an `ecall` to execute a method within the enclave. Although the enclave operates within a restricted environment, there are instances where it may **need to perform non-sensitive actions, such as printing or reading a file, which can be safely executed outside the enclave**. In such cases, the **enclave utilizes an** `ocall` to invoke methods external to the enclave.
+
+In our specific scenario, the portion of the program running outside the enclave primarily serves as an interface for user interaction with the vault. All operations directly involving the vault's data are securely conducted within the enclave.
 
 # Features and tests
 
 ## Create a vault
 
-First of all, a user must be able to create a vault from the application. This vault possesses a few descritionary attributes such as **name**, **password** (in order for a user to be able to access it), the name of its **author** and a counter for the **number of files** it stores. In order to create the vault, the first three atributes must be provided by the user.
+Initially, users should have the capability to create a vault from within the application. This vault includes several discretionary attributes, namely a **name**, a **password** (for user access), the **author's name**, and a counter for the **number of files** it contains. To create the vault, users must provide the first three attributes.
 
-```c++
-void handleCreateVault(char *vaultName, char *password, char *author)
-{
-  int returnVal;
-  ecallCreateVault(global_eid1, &returnVal, vaultName, password, author);
-}
+```mermaid
+sequenceDiagram
+    App ->> Enclave: ecallCreateVault(vaultName, password, author)
+    Enclave ->> Vault: setupVaultHeader(vaultName, password, author)
 ```
 
-From the `app.cpp` this triggers an `ecall` which will call a method from inside the enclave.
-
-```c++
-// Enclave1.cpp
-int ecallCreateVault(const char *vaultName, const char *psw, const char *author)
-{
-    _vault = (Vault *)malloc(sizeof(Vault));
-    setupVault(_vault);
-
-    setupVaultHeader(&_vault->header, (char *)vaultName, (char *)psw, (char *)author);
-
-    enclavePrintf("Vault created successfully\n");
-
-    saveVault();
-
-    return 0;
-}
-
-...
-
-// Vault.cpp
-void setupVault(Vault *vault)
-{
-    vault->state = VALID;
-    vault->asset = NULL;
-}
-...
-void setupVaultHeader(VaultHeader *vaultHeader, char *name, char *password, char *author)
-{
-    memcpy(vaultHeader->name, name, sizeof(vaultHeader->name));
-    sgx_read_rand(vaultHeader->nonce, sizeof(vaultHeader->nonce));
-    memcpy(vaultHeader->password, password, sizeof(vaultHeader->password));
-    memcpy(vaultHeader->author, author, sizeof(vaultHeader->author));
-    vaultHeader->numberOfFiles = 0;
-}
-...
-```
-
-This last function `setupVaultHeader` will also be used every time a vault is loaded, and each time is stores a new random nonce in the vault's header for later use.
+The `setupVaultHeader` function will also be utilized whenever a vault is loaded, ensuring that a new random nonce is stored in the vault's header for future utilization.
 
 ## Insert assets
 
-For the vault to be useful, a user must be able to place assets inside the vault. This can be done in two way: written content directly from **`stdin`** or as a **file**.
+To make the vault functional, users need the ability to deposit assets into it. This can be achieved in two ways: either by entering content directly from `stdin` or by uploading a file. Regardless of the chosen method, the data is initially acquired from various sources and then transferred to the enclave via an `ecall`.
 
-```c++
-void handleAddAssetFromKeyboard()
-{
-  sgx_status_t ret;
-  int ret_val;
-  char assetName[32];
-  char content[256];
-
-  printf("Asset name: ");
-  readStdin(assetName, 32);
-  printf("Asset content: ");
-  readStdin(content, 256);
-
-  ecallInsertAsset(global_eid1, &ret_val, assetName, strlen(assetName) + 1, (uint8_t*)content, strlen(content));
-}
+```mermaid
+sequenceDiagram
+    alt from stdin
+        App ->> Enclave: ecallInsertAsset(assetName, assetNameLength, content, contentLength)
+    else from file
+        App ->> Enclave: ecallInsertAsset(assetName, assetNameLength, content, contentLength
+    end
+    Enclave ->> Vault: setupVaultAsset(assetName, assetDataSize, content)
+    Vault ->> Vault:saveVault
+    
 ```
 
-Either method, besides handling the data differently, will call the `ecallInsertAsset` which will trigger the enclave to insert the asset in the vault.
+A bidirectional linked list of assets is established to manage the stored assets within the vault. Each new asset is appended to this list. Each vault asset includes pointers to the previous and next assets, along with the raw content, content size, name, and SHA256 hash of the asset.
 
-```c++
-// Enclave1.cpp
-int ecallInsertAsset(const char *assetName, size_t assetNameSize, const uint8_t *assetData, int assetDataSize)
-{
-    int err = 0;
-    VaultAsset *newAsset = (VaultAsset *)malloc(sizeof(VaultAsset));
-    setupVaultAsset(newAsset, (char *)assetName, assetDataSize, (unsigned char *)assetData);
-    err = pushAsset(_vault, newAsset);
-    if (err != 0)
-    {
-
-        if (err == -1)
-        {
-            enclavePrintf("Unable to insert asset, vault is not in a valid state\n");
-        }
-        else if (err == -2)
-        {
-            enclavePrintf("Unable to insert asset, asset name is repeated\n");
-        }
-
-        return -1;
-    }
-
-    saveVault();
-
-    return 0;
-}
-...
-// Vault.cpp
-int setupVaultAsset(VaultAsset *vaultAsset, char *name, size_t contentSize, unsigned char *content)
-{
-    size_t nameSize = strlen(name) + 1;
-
-    if (nameSize > 32)
-        return -1;
-
-    memcpy(vaultAsset->name, name, nameSize * sizeof(char));
-
-    vaultAsset->size = contentSize;
-
-    vaultAsset->content = (unsigned char *)malloc(contentSize * sizeof(unsigned char));
-    memcpy(vaultAsset->content, content, contentSize * sizeof(unsigned char));
-
-    sgx_sha256_msg(vaultAsset->content, (uint32_t)contentSize - 1, vaultAsset->hash);
-
-    vaultAsset->next = NULL;
-    vaultAsset->previous = NULL;
-
-    return 0;
-}
-...
+```mermaid
+block-beta
+    block
+        hash
+        name
+        size
+        content
+        next
+        previous
+    end
 ```
-
-From this we can see that a bi-linked list is created with the various assets that are store in the vault, and each new asset is pushed into this list. This vault asset contains pointer to the previous and next asset, alongside with the raw content of the asset, the content size, its name and its SHA256 hash.
 
 ## Saving the vault
 
-After it as pushed the new asset into th vault, the vault is saved. Saving the vault is specially crucial as it is in this phase where the application ensures the data is correctly packaged for later use and interpretation.
+After pushing the new assets into the vault, the vault is saved. This phase is particularly critical as it's where the application ensures the data is correctly organized for future use and interpretation.
 
-```c++
-void saveVault()
-{
-    int totalAssetsSize = 0;
-    VaultAsset *node = _vault->asset;
-    while (node != NULL)
-    {
-        totalAssetsSize += 32 + sizeof(node->name) + sizeof(node->size) + node->size + 32;
-        node = node->next;
-    }
+Initially, we allocate sufficient memory to store the vault headers and the content from the assets that was pushed into the vault. **The vault header size is fixed, being immutable, while the asset list is dynamic and can accommodate varying numbers of assets.** The assets are stored as a continuous data block, with each asset forming a segment of this block structured as follows.
 
-    char *data = (char *)malloc(sizeof(VaultHeader) + totalAssetsSize);
-    if (data == NULL)
-    {
-        enclavePrintf("Error: Memory allocation failed.\n");
-        return;
-    }
+```mermaid
+flowchart LR
+    A[Calculate total size of assets plus the header size] --> B[Store header]
+    C[Iterate through assets and store]
+    B --> C
 
-    memcpy(data, (char *)&_vault->header, sizeof(VaultHeader));
+    subgraph Vault
+        D[Vault header]
+        
+        subgraph Asset01
+            E[Hash]
+            F[Name]
+            G[Size]
+            H[Content]
+        end
+        subgraph Asset02
+            I[Hash]
+            J[Name]
+            K[Size]
+            L[Content]
+        end
+        
+        ...
+    end
 
-    size_t offset = sizeof(VaultHeader);
-    node = _vault->asset;
-    while (node != NULL)
-    {
-        size_t assetSize = 32 + sizeof(node->name) + sizeof(node->size) + node->size + 32;
-
-        memcpy(data + offset, node->hash, 32);
-        memcpy(data + offset + 32, node->name, sizeof(node->name));
-        memcpy(data + offset + 32 + sizeof(node->name), &node->size, sizeof(node->size));
-
-        memcpy(data + offset + 32 + sizeof(node->name) + sizeof(node->size), &node->hash, 32);
-        memcpy(data + offset + 32 + sizeof(node->name) + sizeof(node->size) + 32, node->content, node->size);
-
-        offset += assetSize;
-        node = node->next;
-    }
-
-    sgx_status_t ret;
-    sgx_sealed_data_t *sealed_data = NULL;
-    size_t sealed_size = sizeof(sgx_sealed_data_t) + sizeof(VaultHeader) + totalAssetsSize;
-    sealed_data = (sgx_sealed_data_t *)malloc(sealed_size);
-    if (sealed_data == NULL)
-    {
-        enclavePrintf("Error: Memory allocation failed.\n");
-        free(data);
-        return;
-    }
-
-    ret = sgx_seal_data(0, NULL, sizeof(VaultHeader) + totalAssetsSize, (uint8_t *)data, sealed_size, sealed_data);
-    if (ret != SGX_SUCCESS)
-    {
-        enclavePrintf("Error: Sealing failed (%#x).\n", ret);
-        free(data);
-        free(sealed_data);
-        return;
-    }
-
-    ocallSaveSealedData((uint8_t *)sealed_data, sealed_size, _vault->header.name);
-
-    free(sealed_data);
-}
+    C --> Asset01
+    C --> Asset02
 ```
 
-First we must allocate enough memory to store the vault headers and whatever content from the assets was pushed into the vault. The vault header size is trivial has it is immutable, but the asset list is dynamic and can contain a various amount of assets. Because of this the application must iterate through the list of assets, and copy each nodes content. This will contain of the information necessary to recreate the file and extract it from the vault, but also its hash (we will see its use later on).
+Consequently, the application iterates through the list of assets, copying the content of each node. This content encapsulates all the necessary information to reconstruct the file and extract it from the vault later. Additionally, it stores the hash of each asset for subsequent use.
 
 ## Loading the vault
 
-When loading the vault from a file, the user must provide the vault name and the password, this information will be passed via an `ocall` to be processed inside the enclave. There the password provided will be match against the one stored inside the vault and if successful the vault will be loaded and made available.
+When loading the vault from a file, the user is required to provide the vault name and password. This information is then passed via an `ocall` to be processed within the enclave. Inside the enclave, the provided password is matched against the one stored within the vault. If the comparison is successful, the vault is loaded and made accessible.
+
+The initial step involves unsealing the data (detailed explanation found [here](#seal-and-unseal)), followed by mounting the vault header and loading the assets into the bidirectional asset list.
 
 ```c++
-int loadVault(const char *fileName)
-{
-    sgx_status_t ret = SGX_ERROR_UNEXPECTED;
-    int sealed_size;
-
-    // This size can be considered de maximum size of the vault
-    sgx_sealed_data_t *sealed_data = (sgx_sealed_data_t *)malloc(1024 * 16);
-    char *unsealed_data = (char *)malloc(1024 * 16);
-
-    ocallLoadSealedData(&sealed_size, (uint8_t *)sealed_data, fileName);
-    if (!sealed_data)
-    {
-        return 1;
-    }
-
-    ret = sgx_unseal_data(sealed_data, NULL, NULL, (uint8_t *)unsealed_data, (uint32_t *)&sealed_size);
-    if (ret != SGX_SUCCESS)
-    {
-        enclavePrintf("Error: Unsealing failed\n");
-        return 1;
-    }
-
-    setupVaultHeader(&_vault->header, &unsealed_data[32], &unsealed_data[64], &unsealed_data[96]);
-
-    enclavePrintf("Loading assets...\n");
-    int i = sizeof(VaultHeader);
-    while (i < sealed_size)
-    {
-        VaultAsset *newAsset = (VaultAsset *)malloc(sizeof(VaultAsset));
-
-        sgx_sha256_hash_t hash;
-        memcpy(&hash, &unsealed_data[i + 68], 32);
-
-        setupVaultAsset(newAsset, &unsealed_data[i + 32], unsealed_data[i + 64], (unsigned char *)&unsealed_data[i + 100]);
-
-        if (!ecallCheckDigest(newAsset->name, (const char *)hash))
-        {
-            return 2;
-        }
-
-        pushAsset(_vault, newAsset);
-        i += 68 + newAsset->size;
-    }
-
-    return 0;
-}
+...
+ret = sgx_unseal_data(sealed_data, NULL, NULL, (uint8_t *)unsealed_data, (uint32_t *)&sealed_size);
+...
 ```
 
-The first step will be to unseal the date (this is explained [here](#seal-and-unseal)), it then mount the vault header and load the assets into the bi-linked asset list.
+As the application cannot blindly trust that the vault has not been tampered with, it employs a verification process: upon loading each asset, it calculates its hash and compares it against the hash stored alongside with the asset itself. While this solution isn't foolproof, as an attacker capable of modifying the content could also alter the hash, it does provide a degree of protection against unauthorized data tampering or data corruption.
 
-Because the application cannot trust the vault blindly, it will (as it loads each asset), calculate its hash and match it against the hash stored in the vault. This solution is not perfect, as if an attacker is able to modify the content it could also modify the hash, but it does offer some sort of prevention against unindent modification to the data.
+```c++
+...
+sgx_sha256_hash_t hash;
+memcpy(&hash, &unsealed_data[i + 68], 32);
+
+setupVaultAsset(newAsset, &unsealed_data[i + 32], unsealed_data[i + 64], (unsigned char *)&unsealed_data[i + 100]);
+
+if (!ecallCheckDigest(newAsset->name, (const char *)hash))
+{
+    return 2;
+}
+...
+```
 
 ## List assets
 
-Listing files is also handled via an `ecall` witch will trigger the code inside the enclave to iterate through the vault assets, and print information such as name, size.
+Listing files is also managed through an `ecall`, which triggers the enclave code to iterate through the vault assets and print relevant information such as name and size.
+
+```mermaid
+sequenceDiagram
+    App ->> Enclave: ecallListAssets
+```
 
 ```c++
-int ecallListAssets()
+...
+while (node != NULL)
 {
-    if (getState(_vault) != VALID)
-    {
-        enclavePrintf("Unable to list assets, vault is not in a valid state\n");
-        return -1;
-    }
-
-    enclavePrintf("Vault asset list:\n");
-
-    VaultAsset *node = _vault->asset;
-
-    int i = 1;
-    while (node != NULL)
-    {
-        enclavePrintf("%d - name: %s , size: %d \n", i, node->name, node->size);
-        node = node->next;
-        i++;
-    }
-
-    return 0;
+    enclavePrintf("%d - name: %s , size: %d \n", i, node->name, node->size);
+    node = node->next;
+    i++;
 }
+...
 ```
 
 ## Print assets
 
-Printing assets works in a similar fashion to the last functionality, but know the `ecall` will trigger the enclave to print the files **content** to `stdout`.
+Printing assets operates similarly to the previous functionality. However, in this case, the `ecall` prompts the enclave to print the content of the files to `stdout`. While this is highly useful for text-based content, it may not be as practical for binary files, as their raw binary data will be printed as output.
 
-```c++
-int ecallPrintAsset(char *name)
-{
-    VaultAsset *node = _vault->asset;
-
-    while (node != NULL && strcmp(node->name, name) != 0)
-        node = node->next;
-
-    if (node != NULL)
-    {
-        enclavePrintf("-----------\n'%s' content \n-----------\n%s\n-----------\n", name, node->content);
-        return 0;
-    }
-
-    return 1;
-}
+```mermaid
+sequenceDiagram
+    App ->> Enclave: ecallPrintAsset
 ```
 
-This is obviously useful for text-based content, not as useful for files.
+```c++
+...
+while (node != NULL && strcmp(node->name, name) != 0)
+node = node->next;
+
+if (node != NULL)
+{
+    enclavePrintf("-----------\n'%s' content \n-----------\n%s\n-----------\n", name, node->content);
+    return 0;
+}
+...
+```
 
 ## Export assets
 
 If a user chooses to retrieve a file it has stored as an asset in the vault, it must be able to export it to a new file. Calling `ecallSaveAssetToFile` and providing the asset name and a new for the new file, the enclave will be able to handle this request.
 
-```c++
-int ecallSaveAssetToFile(char *assetName, char *fileName)
-{
-    VaultAsset *node = _vault->asset;
-
-    while (node != NULL && strcmp(node->name, assetName) != 0)
-        node = node->next;
-
-    if (node != NULL)
-    {
-        ocallSaveDataToFile((const char *)node->content, node->size, fileName);
-        return 0;
-    }
-
-    return 1;
-}
+```mermaid
+sequenceDiagram
+    App ->> Enclave: ecallSaveAssetToFile(assetName, fileName)
+    Enclave ->> App:ocallSaveDataToFile(assetContent, assetSize, fileName)
 ```
 
-The enclave will search the asset list and retrieve its content. Because the enclave is isolated, it must perform an `ocall` for the application to handle the process of writting the extracted data to the new object file.
-
-```c++
-void ocallSaveDataToFile(const char *data, int siz, const char *fileName)
-{
-  FILE *file = fopen(fileName, "w");
-
-  if (file == NULL)
-  {
-    fprintf(stderr, "Error opening the file.\n");
-    return;
-  }
-
-  size_t numBytesWritten = fwrite(data, sizeof(char), siz, file);
-
-  fclose(file);
-}
-```
+When a user opts to retrieve a file stored as an asset in the vault, they must be able to export it to a new file. By invoking `ecallSaveAssetToFile` and specifying the asset name along with a new file name, the enclave can process this request.
 
 ## Compare assets hash
 
-A user may also whish to verify if an asset stored in the vault is the correct one, and for that it should be able to compare its hash with one he/she possesses.
+A user may also wish to verify if an asset stored in the vault is the correct one. For this purpose, they should be able to compare its hash with one they possess. By invoking `ecallCheckDigest`, the user can provide the text-based hash, typically obtained from tools like `sha256sum`, to match it against the one calculated by the enclave. This comparison enables users to confirm the integrity and authenticity of the stored asset.
 
-By triggering `ecallCheckDigest`, the user is able to provide the text-based hash (provided by tools such as `sha256sum`) and match it against the one now calculated by the enclave.
-
-```c++
-char ecallCheckDigest(const char *assetName, const char *digest)
-{
-    VaultAsset *node = _vault->asset;
-
-    while (node != NULL && strcmp(node->name, assetName) != 0)
-        node = node->next;
-
-    if (node != NULL)
-        return strcmp((char *)node->hash, digest);
-
-    return -2;
-}
+```mermaid
+sequenceDiagram
+    App ->> Enclave: ecallCheckDigest(assetName, digest)
 ```
 
 ## Change passwords
 
-A user may wish to change the password for the vault. This needs to be done securely and as such it must be done inside the enclave. By calling `ecallChangePassword` this can be achieved.
+A user may wish to change the password for the vault, a process that needs to be conducted securely within the enclave. This can be accomplished by calling `ecallChangePassword`.
 
-```c++
-int ecallChangePassword(const char *newPsw, size_t newPswSize)
-{
-    if (newPswSize > 32)
-    {
-        enclavePrintf("Password size exceeded max size (max := %d, received %d)\n", 32, newPswSize);
-        return -1;
-    }
-
-    changePassword(_vault, (char *)newPsw);
-    enclavePrintf("Sucessfully changed vault password\n");
-
-    saveVault();
-
-    return 0;
-}
+```mermaid
+sequenceDiagram
+    App ->> Enclave: ecallChangePassword(newPassword, sizeNewPassword)
+    Enclave ->> Vault: changePassword(newPassword)
+    Vault ->> Vault: saveVault
 ```
 
-This will simply replace the password store in the header by the new password provided an saving the vault will seal the data.
+This operation will replace the password stored in the header with the new one provided. Subsequently, saving the vault will seal the data, ensuring its security.
 
 ## Seal and unseal
 ```mermaid
 block-beta
     block
         Nonce
+        Name
         Password
         Author
         N_files
@@ -461,22 +252,22 @@ block-beta
     end
 ```
 
-In order to keep the vault trough multiple executions of the enclave, the vault data need to exported into a file that later can be imported. To do that, every time vault is created or modified, all of its data is sealed and stored in a file with the same name as the vault. To seal the data the keys generated by the enclave are used, this key is derived from a CPU specific key and a key extracted from the logs generated when creating the enclave.
+To ensure persistence across multiple executions of the enclave, the vault data needs to be exported into a file that can later be imported. To achieve this, whenever the vault is created or modified, all of its data is sealed and stored in a file with the same name as the vault. The sealing process utilizes keys generated by the enclave, derived from a CPU-specific key and a key extracted from the logs generated during enclave creation.
 
-With the sealed data inside the vault file, the program is able to load the vault keeping its previous state. Also, taking advantage of the store hash value for each file, it detects when files were corrupted.
+With the sealed data stored within the vault file, the program is capable of loading the vault while maintaining its previous state. Additionally, leveraging the stored hash values for each file, it can detect instances where files have been corrupted.
 
 ## Clone vault
-Clone a vault from a remote host was implemented using TLS communication. It consists of a TLS server which waits for clients and a client that requests the vault.
+Implementing the cloning of a vault from a remote host was achieved using TLS communication. This involved setting up a TLS server that waits for client connections, and a client that initiates the request for the vault.
 
 ![Clone structure](./assets/clone.png)
 
-TLS requires trusted certificates to run properly, a script obtained from (here)[https://github.com/diogoftm/simulated-kms/blob/main/certs/makefile] which generates certificates signed by a self signed CA. These certificates are loaded by the server and the client.
+TLS operation necessitates trusted certificates for proper functioning. To fulfill this requirement, a script (obtained from (here)[https://github.com/diogoftm/simulated-kms/blob/main/certs/makefile]) was utilized to generate certificates signed by a self-signed CA. These certificates are then loaded by both the server and the client.
 
-Implementation of client and server can be found in `src/App/AppSocket.cpp`. A simple message exchange protocol was built to support base communication (`BaseMessageLayer`).
+In the `src/App/AppSocket.cpp` file, you can find the implementation of both the client and server components. We've developed a simple message exchange protocol, termed the `BaseMessageLayer`, to support basic communication.
 
-The clone happens on top of that protocol, both server and client communication depends on a callback passed as argument to setup functions (see `TlsClient::connect(...)`  and `TlsServer::run_server(...)`). Both callbacks were defined in `src/App.cpp` (`serveClientCallback(SSL* ssl)` and `clientConnectionWithServerCallback(SSL* ssl)`).
+The cloning process builds upon this protocol. Both server and client communication rely on callbacks passed as arguments to setup functions, as demonstrated in `TlsClient::connect(...)` and `TlsServer::run_server(...)`. These callbacks, namely `serveClientCallback(SSL* ssl)` and `clientConnectionWithServerCallback(SSL* ssl)`, are defined in `src/App.cpp`.
 
-Clone was divided in some phases, after communication is initialized the following steps (in case of success) happen.
+The cloning operation is divided into several phases. After initializing communication, the following steps occur (assuming success).
 
 1. Client sends a request clone message.
 2. Server asks for vault name.
@@ -485,12 +276,15 @@ Clone was divided in some phases, after communication is initialized the followi
 5. Client sends an ok message after clone is completed.
 6. Server sends a close session message.
 
-After clone is completed, client will ask user for the vault password and will decipher it inside the enclave using the same process as the server (AESGCM with the password hash).
+After the cloning process is completed, the client prompts the user for the vault password and decrypts it within the enclave using the same process as the server (AESGCM with the password hash).
 
-Server is not validating the client certificate, it could be implemented by adding some extra steps which could include asking for the client certificate, verifying if is the same as the server and then asking for a challenge to be signed by the client (proof that client has the private certificate key).
+Currently, the server does not validate the client certificate. This functionality could be implemented by introducing additional steps, such as requesting the client certificate, verifying if it matches the expected certificate on the server side, and then requesting a challenge to be signed by the client as proof that it possesses the private certificate key.
 
 Server             |  Client
 :-------------------------:|:-------------------------:
 ![](./assets/clone_1.png)  |  ![](./assets/clone_2.png)
 
 # Conclusions
+This project showcases the robust capabilities of Intel SGX as a secure mechanism for safeguarding sensitive data during execution. By encapsulating critical processes within SGX enclaves, it creates a fortified environment where data handling occurs with heightened security.
+
+This vault empowers users to confidently manage, store, and transport sensitive data that would otherwise be vulnerable to exposure. Leveraging Intel SGX enclaves ensures that even in potentially compromised environments, data remains protected, preserving its confidentiality and integrity throughout its lifecycle.
