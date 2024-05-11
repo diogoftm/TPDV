@@ -30,7 +30,7 @@ The objective of this project is to develop a "tamper-proof digital vault" (TPDV
 This report offers a concise overview of our TPDV implementation, along with the results from various conducted tests. We commence by outlining the [overall structure](#overall-structure) of the system, followed by a detailed examination of its individual [feature by feature](#features-and-tests). Finally, we consolidate our findings in the [conclusions](#conclusions).
 
 # Overall structure
-```mermaid
+```{.mermaid width=300 caption="Overall flow of a vault operation"}
 sequenceDiagram
     App->>Enclave: Perform secure operation (ecall)
     opt extra unsecure request
@@ -52,7 +52,7 @@ In our specific scenario, the portion of the program running outside the enclave
 
 Initially, users should have the capability to create a vault from within the application. This vault includes several discretionary attributes, namely a **name**, a **password** (for user access), the **author's name**, and a counter for the **number of files** it contains. To create the vault, users must provide the first three attributes.
 
-```mermaid
+```{.mermaid caption="Create vault flow"}
 sequenceDiagram
     App ->> Enclave: ecallCreateVault(vaultName, password, author)
     Enclave ->> Vault: setupVaultHeader(vaultName, password, author)
@@ -60,18 +60,18 @@ sequenceDiagram
 
 The `setupVaultHeader` function will also be utilized whenever a vault is loaded, ensuring that a new random nonce is stored in the vault's header for future utilization.
 
-![Creating a vault](./assets/create_vault.png)
+![Creating a vault](./assets/create_vault.png){width=30%}
 
 ## Insert assets
 
 To make the vault functional, users need the ability to deposit assets into it. This can be achieved in two ways: either by entering content directly from `stdin` or by uploading a file. Regardless of the chosen method, the data is initially acquired from various sources and then transferred to the enclave via an `ecall`.
 
-```mermaid
+```{.mermaid caption="Insert asset vault flow"}
 sequenceDiagram
     alt from stdin
         App ->> Enclave: ecallInsertAsset(assetName, assetNameLength, content, contentLength)
     else from file
-        App ->> Enclave: ecallInsertAsset(assetName, assetNameLength, content, contentLength
+        App ->> Enclave: ecallInsertAsset(assetName, assetNameLength, content, contentLength)
     end
     Enclave ->> Vault: setupVaultAsset(assetName, assetDataSize, content)
     Vault ->> Vault:saveVault
@@ -80,7 +80,7 @@ sequenceDiagram
 
 A bidirectional linked list of assets is established to manage the stored assets within the vault. Each new asset is appended to this list. Each vault asset includes pointers to the previous and next assets, along with the raw content, content size, name, and SHA256 hash of the asset.
 
-```mermaid
+```{.mermaid width=400 caption="Asset structure"}
 block-beta
     block
         hash
@@ -102,7 +102,7 @@ After pushing the new assets into the vault, the vault is saved. This phase is p
 
 Initially, we allocate sufficient memory to store the vault headers and the content from the assets that was pushed into the vault. **The vault header size is fixed, being immutable, while the asset list is dynamic and can accommodate varying numbers of assets.** The assets are stored as a continuous data block, with each asset forming a segment of this block structured as follows.
 
-```mermaid
+```{.mermaid caption="Saving vault structure"}
 flowchart LR
     A[Calculate total size of assets plus the header size] --> B[Store header]
     C[Iterate through assets and store]
@@ -165,7 +165,7 @@ if (!ecallCheckDigest(newAsset->name, (const char *)hash))
 
 Listing files is also managed through an `ecall`, which triggers the enclave code to iterate through the vault assets and print relevant information such as name and size.
 
-```mermaid
+```{.mermaid width=300 caption="List assets flow"}
 sequenceDiagram
     App ->> Enclave: ecallListAssets
 ```
@@ -187,7 +187,7 @@ while (node != NULL)
 
 Printing assets operates similarly to the previous functionality. However, in this case, the `ecall` prompts the enclave to print the content of the files to `stdout`. While this is highly useful for text-based content, it may not be as practical for binary files, as their raw binary data will be printed as output.
 
-```mermaid
+```{.mermaid width=300 caption="Print asset flow"}
 sequenceDiagram
     App ->> Enclave: ecallPrintAsset
 ```
@@ -211,7 +211,7 @@ if (node != NULL)
 
 If a user chooses to retrieve a file it has stored as an asset in the vault, it must be able to export it to a new file. Calling `ecallSaveAssetToFile` and providing the asset name and a new for the new file, the enclave will be able to handle this request.
 
-```mermaid
+```{.mermaid width=400 caption="Export asset flow"}
 sequenceDiagram
     App ->> Enclave: ecallSaveAssetToFile(assetName, fileName)
     Enclave ->> App:ocallSaveDataToFile(assetContent, assetSize, fileName)
@@ -227,7 +227,7 @@ When a user opts to retrieve a file stored as an asset in the vault, they must b
 
 A user may also wish to verify if an asset stored in the vault is the correct one. For this purpose, they should be able to compare its hash with one they possess. By invoking `ecallCheckDigest`, the user can provide the text-based hash, typically obtained from tools like `sha256sum`, to match it against the one calculated by the enclave. This comparison enables users to confirm the integrity and authenticity of the stored asset.
 
-```mermaid
+```{.mermaid width=300 caption="Compare asset hash flow"}
 sequenceDiagram
     App ->> Enclave: ecallCheckDigest(assetName, digest)
 ```
@@ -238,7 +238,7 @@ sequenceDiagram
 
 A user may wish to change the password for the vault, a process that needs to be conducted securely within the enclave. This can be accomplished by calling `ecallChangePassword`.
 
-```mermaid
+```{.mermaid caption="Change password flow"}
 sequenceDiagram
     App ->> Enclave: ecallChangePassword(newPassword, sizeNewPassword)
     Enclave ->> Vault: changePassword(newPassword)
@@ -250,7 +250,7 @@ This operation will replace the password stored in the header with the new one p
 ![Changing password of the vault](./assets/change_password.png)
 
 ## Seal and unseal
-```mermaid
+```{.mermaid width=600 caption="Sealed data structure"}
 block-beta
     block
         Nonce
@@ -277,7 +277,7 @@ With the sealed data stored within the vault file, the program is capable of loa
 ## Clone vault
 Implementing the cloning of a vault from a remote host was achieved using TLS communication. This involved setting up a TLS server that waits for client connections, and a client that initiates the request for the vault.
 
-![Clone structure](./assets/clone.png)
+![Clone structure](./assets/clone.png){ width=70% }
 
 TLS operation necessitates trusted certificates for proper functioning. To fulfill this requirement, a script (obtained from (here)[https://github.com/diogoftm/simulated-kms/blob/main/certs/makefile]) was utilized to generate certificates signed by a self-signed CA. These certificates are then loaded by both the server and the client.
 
@@ -300,7 +300,7 @@ Currently, the server does not validate the client certificate. This functionali
 
 Server             |  Client
 :-------------------------:|:-------------------------:
-![](./assets/clone_1.png)  |  ![](./assets/clone_2.png)
+![](./assets/clone_1.png){ width=50% }  |  ![](./assets/clone_2.png){ width=50% }
 
 # Conclusions
 This project showcases the robust capabilities of Intel SGX as a secure mechanism for safeguarding sensitive data during execution. By encapsulating critical processes within SGX enclaves, it creates a fortified environment where data handling occurs with heightened security.
