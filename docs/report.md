@@ -489,4 +489,8 @@ After clone is completed, client will ask user for the vault password and will d
 
 Server is not validating the client certificate, it could be implemented by adding some extra steps which could include asking for the client certificate, verifying if is the same as the server and then asking for a challenge to be signed by the client (proof that client has the private certificate key).
 
+Server             |  Client
+:-------------------------:|:-------------------------:
+![](./assets/clone_1.png)  |  ![](./assets/clone_2.png)
+
 # Conclusions
